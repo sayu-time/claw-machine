@@ -7,101 +7,136 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
 <style>
   :root {
-    --bg: #1b1035; --panel: #2a1a52; --panel2: #352266; --text: #fff6fb; --muted: #c9b8ef;
-    --pink: #ff5fa2; --yellow: #ffd23f; --mint: #3ee6c1; --line: rgba(255,255,255,.12);
+    --bg: #120a24; --panel: #22163f; --panel2: #2f2057; --text: #fff6fb; --muted: #c2b3e6;
+    --pink: #ff5fa2; --yellow: #ffd23f; --mint: #3ee6c1; --red: #ff5f5f; --line: rgba(255,255,255,.1);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
-  body {
-    background: radial-gradient(circle at 30% 10%, #3a1f73 0, var(--bg) 60%);
-    color: var(--text); font-family: 'Jua', system-ui, sans-serif;
-    display: flex; align-items: center; justify-content: center; gap: 28px; padding: 20px;
-    overflow: hidden;
-  }
-  #stage { position: relative; height: calc(100vh - 40px); aspect-ratio: 560 / 760; max-width: 62vw; }
-  canvas { width: 100%; height: 100%; display: block; border-radius: 28px; box-shadow: 0 0 0 8px var(--pink), 0 0 0 14px #b8387a, 0 20px 60px rgba(0,0,0,.6); }
-  aside { width: 300px; display: flex; flex-direction: column; gap: 16px; max-height: calc(100vh - 40px); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 18px; }
-  h1 { margin: 0 0 4px; font-size: 34px; color: var(--yellow); text-shadow: 0 3px 0 #b8387a; letter-spacing: 1px; }
-  .sub { color: var(--muted); font-size: 15px; }
-  #qrBox { background: #fff; border-radius: 14px; padding: 10px; display: flex; justify-content: center; margin: 12px 0 8px; min-height: 200px; align-items: center; color: #333; }
-  #qrBox img, #qrBox canvas { width: 200px !important; height: 200px !important; box-shadow: none; border-radius: 0; }
-  #link { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
-  #status { display: flex; align-items: center; gap: 8px; font-size: 17px; margin-top: 8px; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: #888; flex: none; }
+  body { background: var(--bg); color: var(--text); font-family: 'Jua', system-ui, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  /* 시작 화면 */
+  #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(18,10,36,.25), rgba(18,10,36,.7)); z-index: 5; transition: opacity .4s; }
+  #start.hide { opacity: 0; pointer-events: none; }
+  .startCard { width: min(400px, 100%); max-height: 100%; overflow: auto; background: rgba(34,22,63,.88); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 26px; padding: 22px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  .startCard h1 { font-size: 40px; }
+  .startCard .row2 { display: flex; gap: 10px; margin-top: 14px; }
+  .startCard .row2 button { flex: 1; }
+  #status { justify-content: center; }
+  #qrBox { margin: 14px auto 8px; width: 220px; }
+  #historyWrap { margin-top: 14px; text-align: left; font-size: 14px; color: var(--muted); }
+  #historyWrap summary { cursor: pointer; }
+  #demoBadge { top: 18px; left: 22px; font-size: 14px; background: rgba(255,95,162,.85); padding: 6px 14px; border-radius: 99px; letter-spacing: 1px; animation: blink 1.4s infinite; }
+  @keyframes blink { 50% { opacity: .55; } }
+  #corner { position: absolute; right: 16px; bottom: 16px; z-index: 4; display: none; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); background: rgba(0,0,0,.35); padding: 6px 12px; border-radius: 99px; }
+  #corner.show { display: flex; }
+  h1 { margin: 0 0 4px; font-size: 32px; color: var(--yellow); text-shadow: 0 3px 0 #b8387a; }
+  .sub { color: var(--muted); font-size: 14px; line-height: 1.4; }
+  #qrBox { background: #fff; border-radius: 14px; padding: 10px; display: flex; justify-content: center; margin: 12px 0 8px; min-height: 200px; align-items: center; color: #333; font-size: 13px; text-align: center; }
+  #qrBox img, #qrBox canvas { width: 200px !important; height: 200px !important; }
+  #link { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); word-break: break-all; }
+  #status { display: flex; align-items: center; gap: 8px; font-size: 17px; margin-top: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #777; flex: none; }
   .dot.on { background: var(--mint); box-shadow: 0 0 10px var(--mint); }
-  select { font: inherit; font-size: 13px; padding: 4px; border-radius: 8px; margin-top: 6px; width: 100%; }
-  button { font-family: inherit; font-size: 17px; border: 0; border-radius: 14px; padding: 12px 14px; cursor: pointer; color: #2a1a52; background: var(--yellow); box-shadow: 0 4px 0 #b88f00; }
+  button { font-family: inherit; font-size: 16px; border: 0; border-radius: 14px; padding: 11px 14px; cursor: pointer; color: #2a1a52; background: var(--yellow); box-shadow: 0 4px 0 #b88f00; }
   button:active { transform: translateY(2px); box-shadow: 0 2px 0 #b88f00; }
-  button.ghost { background: var(--panel2); color: var(--text); box-shadow: 0 4px 0 #1a0f38; }
-  #history { overflow: auto; min-height: 60px; flex: 1; }
-  #history ol { margin: 8px 0 0; padding-left: 22px; color: var(--muted); }
-  #history li { margin: 4px 0; color: var(--text); }
-  .keys { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  button.ghost { background: var(--panel2); color: var(--text); box-shadow: 0 4px 0 #120a28; }
+  #historyList { margin: 8px 0 0; padding-left: 22px; }
+  #historyList li { margin: 4px 0; }
+  .keys { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+  /* HUD */
+  .hud { position: absolute; pointer-events: none; }
+  #timer { top: 18px; left: 22px; font-size: 44px; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,.4); display: none; }
+  #timer.low { color: #ff6b6b; }
+  #phaseMsg { top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.45); padding: 10px 22px; border-radius: 99px; font-size: 22px; white-space: nowrap; display: none; }
+  #hint { left: 50%; top: 45%; transform: translate(-50%, -50%); background: rgba(10,5,25,.6); padding: 18px 30px; border-radius: 22px; font-size: 26px; text-align: center; }
+  #camLabel { right: 18px; top: 18px; font-size: 14px; background: rgba(0,0,0,.4); padding: 6px 12px; border-radius: 99px; color: var(--muted); }
+  #analysis { left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 92%); background: rgba(18,10,36,.88); border: 1px solid var(--line); border-radius: 20px; padding: 16px 20px; display: none; backdrop-filter: blur(6px); }
+  #analysis.show { display: block; animation: up .35s ease-out; }
+  #analysis h3 { margin: 0 0 6px; font-size: 26px; }
+  #analysis .detail { color: var(--muted); font-size: 15px; margin-bottom: 10px; line-height: 1.45; }
+  .bar { display: grid; grid-template-columns: 70px 1fr 48px; gap: 10px; align-items: center; font-size: 14px; margin: 5px 0; }
+  .bar .track { height: 10px; background: #ffffff1a; border-radius: 99px; overflow: hidden; position: relative; }
+  .bar .fill { height: 100%; border-radius: 99px; background: var(--mint); }
+  .bar.total .fill { background: var(--yellow); }
+  .bar .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; }
+  @keyframes up { from { transform: translate(-50%, 20px); opacity: 0; } }
 
   /* 설정 모달 */
   .modal { position: fixed; inset: 0; background: rgba(10,5,25,.7); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
   .modal.show { display: flex; }
-  .sheet { background: var(--panel); border-radius: 24px; padding: 22px; width: min(760px, 100%); max-height: 90vh; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--line); }
+  .sheet { background: var(--panel); border-radius: 24px; padding: 22px; width: min(780px, 100%); max-height: 92vh; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--line); }
   .sheet h2 { margin: 0; color: var(--yellow); }
   #prizeList { overflow: auto; display: flex; flex-direction: column; gap: 10px; }
-  .row { display: grid; grid-template-columns: 64px 1fr 90px 80px 90px 40px; gap: 8px; align-items: center; background: var(--panel2); padding: 10px; border-radius: 14px; }
-  .row .thumb { width: 64px; height: 64px; border-radius: 50%; background: #fff2; display: flex; align-items: center; justify-content: center; font-size: 36px; overflow: hidden; cursor: pointer; position: relative; }
+  .row, .hdr { display: grid; grid-template-columns: 60px 1fr 80px 70px 100px 40px; gap: 8px; align-items: center; }
+  .row { background: var(--panel2); padding: 10px; border-radius: 14px; }
+  .hdr { font-size: 13px; color: var(--muted); padding: 0 10px; }
+  .row .thumb { width: 60px; height: 60px; border-radius: 50%; background: #fff2; display: flex; align-items: center; justify-content: center; font-size: 34px; overflow: hidden; cursor: pointer; }
   .row .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .row input { font: inherit; font-size: 16px; width: 100%; padding: 8px; border-radius: 10px; border: 0; background: #fff; color: #2a1a52; }
-  .row label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 2px; }
-  .row .del { background: #ff5f5f; color: #fff; box-shadow: 0 4px 0 #a33; padding: 8px; }
-  .hdr { display: grid; grid-template-columns: 64px 1fr 90px 80px 90px 40px; gap: 8px; font-size: 13px; color: var(--muted); padding: 0 10px; }
+  .row input, .row select, .opts select { font: inherit; font-size: 16px; width: 100%; padding: 8px; border-radius: 10px; border: 0; background: #fff; color: #2a1a52; }
+  .row .del { background: var(--red); color: #fff; box-shadow: 0 4px 0 #a33; padding: 8px; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--panel2); padding: 12px; border-radius: 14px; }
+  .opts label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
   .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
   .actions .left { margin-right: auto; display: flex; gap: 10px; }
-  .hint { font-size: 13px; color: var(--muted); }
+  .hint2 { font-size: 13px; color: var(--muted); line-height: 1.5; }
 
-  /* 당첨 연출 */
-  #win { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; background: rgba(10,5,25,.55); }
-  #win.show { display: flex; animation: fade .3s; }
+  /* 당첨 */
+  #win { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; background: rgba(10,5,25,.5); }
+  #win.show { display: flex; }
   #win .box { background: linear-gradient(160deg, #ff8cc0, #ff5fa2); border-radius: 32px; padding: 30px 50px; text-align: center; box-shadow: 0 0 0 8px var(--yellow), 0 30px 80px rgba(0,0,0,.5); animation: pop .5s cubic-bezier(.2,1.6,.4,1); }
   #win .big { font-size: 120px; line-height: 1.1; }
   #win .big img { width: 160px; height: 160px; border-radius: 50%; object-fit: cover; border: 6px solid #fff; }
   #win h3 { font-size: 30px; margin: 10px 0 0; }
-  #win p { font-size: 44px; margin: 6px 0 0; color: #fff; text-shadow: 0 3px 0 #b8387a; }
-  @keyframes pop { from { transform: scale(.3) rotate(-10deg); } to { transform: none; } }
-  @keyframes fade { from { opacity: 0; } }
+  #win p { font-size: 44px; margin: 6px 0 0; text-shadow: 0 3px 0 #b8387a; }
+  @keyframes pop { from { transform: scale(.3) rotate(-10deg); } }
+  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--muted); }
 
-  @media (max-width: 900px) {
-    body { flex-direction: column; overflow: auto; height: auto; }
-    #stage { height: auto; width: 100%; max-width: 520px; }
-    aside { width: 100%; max-width: 520px; max-height: none; }
-    .row, .hdr { grid-template-columns: 52px 1fr 70px 64px 70px 36px; }
+  @media (max-width: 700px) {
+    .row, .hdr { grid-template-columns: 50px 1fr 64px 60px 84px 36px; }
   }
 </style>
 </head>
 <body>
-  <div id="stage"><canvas id="game" width="560" height="760"></canvas></div>
+  <div id="stage">
+    <div id="loading">기계 준비 중…</div>
+    <div class="hud" id="demoBadge">DEMO · 시연 중</div>
+    <div class="hud" id="timer">30</div>
+    <div class="hud" id="phaseMsg"></div>
+    <div class="hud" id="camLabel">📷 정면</div>
+    <div class="hud" id="hint"></div>
+    <div class="hud" id="analysis"></div>
+    <div id="corner"><span class="dot on" id="dot2"></span><span id="cornerText">📱 연결됨</span></div>
 
-  <aside>
-    <div class="card">
-      <h1>인형뽑기</h1>
-      <div class="sub">폰으로 QR을 찍으면 컨트롤러가 돼요<br>와이파이·LTE 상관없이 연결돼요</div>
-      <div id="qrBox">QR 만드는 중…</div>
-      <div id="link"></div>
-      <div id="status"><span class="dot" id="dot"></span><span id="statusText">폰 연결 대기 중</span></div>
-      <div class="keys">PC 키보드: ← → 이동 · Space 뽑기</div>
+    <div id="start">
+      <div class="startCard">
+        <h1>인형뽑기</h1>
+        <div class="sub">폰으로 QR을 찍으면 게임패드가 돼요 · 와이파이·LTE 상관없음</div>
+        <div id="qrBox">QR 만드는 중…</div>
+        <div id="link"></div>
+        <div id="status"><span class="dot" id="dot"></span><span id="statusText">중계 서버 연결 중…</span></div>
+        <div class="row2">
+          <button id="openSettings">🎁 상품 설정</button>
+          <button id="refill" class="ghost" title="기계 다시 채우기">🔄 다시 채우기</button>
+        </div>
+        <div class="keys">PC로 하기: 방향키/WASD 이동 · Space 뽑기 · C 시점 · Esc 시작화면</div>
+        <details id="historyWrap"><summary>🏆 뽑은 상품</summary><ol id="historyList"></ol></details>
+      </div>
     </div>
-    <div class="card" style="display:flex; gap:10px;">
-      <button id="openSettings" style="flex:1">🎁 상품 설정</button>
-      <button id="refill" class="ghost" title="기계 다시 채우기">🔄</button>
-    </div>
-    <div class="card" id="history">
-      <div>🏆 뽑은 상품</div>
-      <ol id="historyList"></ol>
-    </div>
-  </aside>
+  </div>
 
   <div class="modal" id="settings">
     <div class="sheet">
       <h2>🎁 상품 설정</h2>
-      <div class="hint">동그라미를 눌러 사진을 넣을 수 있어요. 성공률은 집게가 제대로 잡았을 때 끝까지 들고 오는 확률이에요.</div>
-      <div class="hdr"><span>사진</span><span>이름</span><span>이모지</span><span>수량</span><span>성공률 %</span><span></span></div>
+      <div class="hint2">동그라미를 누르면 사진을 넣을 수 있어요. 결과는 확률이 아니라 실력으로 정해져요. 큰 인형일수록 집게에 잘 안 걸려서 어려워요.</div>
+      <div class="opts">
+        <div><label>집게 힘</label>
+          <select id="optStrength"><option value="0.82">약함 (어려움)</option><option value="0.95">보통</option><option value="1.1">강함 (쉬움)</option></select></div>
+        <div><label>한 판 시간</label>
+          <select id="optTime"><option value="20">20초</option><option value="30">30초</option><option value="45">45초</option><option value="60">60초</option></select></div>
+      </div>
+      <div class="hdr"><span>사진</span><span>이름</span><span>이모지</span><span>수량</span><span>크기</span><span></span></div>
       <div id="prizeList"></div>
       <div class="actions">
         <div class="left">
@@ -117,9 +152,18 @@
 
   <div id="win"><div class="box"><div class="big" id="winIcon"></div><h3 id="winName"></h3><p>🎉 당첨! 🎉</p></div></div>
 
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+      "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+    }
+  }
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="net.js"></script>
-  <script src="game.js"></script>
+  <script type="module" src="game3d.js"></script>
 </body>
 </html>
