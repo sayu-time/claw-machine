@@ -14,7 +14,7 @@ const DEFAULT_PRIZES = [
   { name: '음료 쿠폰', emoji: '🥤', img: '', count: 5 },
   { name: '1등 선물', emoji: '🎁', img: '', count: 1 },
 ];
-const DEFAULT_OPTS = { blank: 24, diff: 0.55, playTime: 15, orient: 'auto' };
+const DEFAULT_OPTS = { blank: 36, diff: 0.55, playTime: 15, orient: 'auto' };
 const PRIZE_KEY = 'capsule.prizes.v1', OPT_KEY = 'capsule.opts.v1', HIST_KEY = 'capsule.history.v1';
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
@@ -66,7 +66,7 @@ function resize() {
   L = {
     d: m * 0.075,                 // 옆벽 깊이
     lip: m * 0.11,                // 위쪽 벽(로고) 높이
-    R: Math.min(W / 16, H / 14),  // 캡슐 반지름
+    R: capRadius(),               // 캡슐 반지름 (개수에 맞춰 더미가 화면 약 40%를 채우도록)
   };
   L.x0 = L.d * 0.35; L.x1 = W - L.d * 0.35; L.floor = H;
   L.clawS = L.R * 2.1;            // 집게 크기 (캡슐보다 크게)
@@ -88,6 +88,14 @@ function resize() {
   if (claw.phase === 'ready' || claw.phase === 'move') claw.y = L.restY;
 }
 addEventListener('resize', applyOrientation);
+
+// 캡슐 총개수로 반지름 결정: 4개 층이 겹쳐 쌓였을 때 화면 높이의 약 42%를 채우게
+function capRadius() {
+  const total = Math.max(12, Math.min(140, prizes.reduce((n, p) => n + (p.count || 0), 0) + (opts.blank || 0)));
+  const wInt = W * 0.95;
+  const r = Math.sqrt(0.264 * wInt * H / total);
+  return Math.max(Math.min(W / 24, H / 22), Math.min(r, W / 12, H / 12.5));
+}
 
 function makeBackground() {
   const c = document.createElement('canvas');
@@ -147,10 +155,19 @@ function makeBackground() {
 let caps = [];
 let uid = 0;
 
-function newCap(pi, x, y) {
+// 깊이 층: 0(맨 뒤) ~ 3(맨 앞). 층마다 크기·바닥 높이·좌우 폭이 달라 원근감이 생김
+const LAYERS = 4;
+function zkOf(c) { return 0.78 + 0.28 * c.z; }          // 보이는 크기 비율
+function rOf(c) { return L.R * zkOf(c); }               // 보이는 반지름
+function floorOf(c) { return L.floor - (1 - c.z) * L.R * 1.7; }   // 뒤층일수록 바닥이 위(멀리)
+function insetOf(c) { return (1 - c.z) * L.R * 0.9; }   // 뒤층일수록 좌우가 좁음
+
+function newCap(pi, x, y, layer) {
   const silverChance = pi >= 0 && prizes[pi] && prizes[pi].count <= 1 ? 0.7 : 0.08; // 귀한 상품은 은색일 확률 높음
   const ci = Math.random() < silverChance ? 7 : Math.floor(Math.random() * 7);
-  const c = { id: ++uid, pi, ci, z: Math.random(), x, y, vx: (Math.random() - 0.5) * 40, vy: 0, a: 0, va: 0, held: false, gone: false };
+  const li = layer ?? Math.floor(Math.random() * LAYERS);
+  const c = { id: ++uid, pi, ci, li, z: li / (LAYERS - 1), x, y, vx: (Math.random() - 0.5) * 40, vy: 0,
+    a: (Math.random() - 0.5) * 0.55, va: 0, held: false, gone: false };   // 살짝 기울어진 채 고정 (회전하지 않음)
   caps.push(c);
   return c;
 }
@@ -161,14 +178,15 @@ function refill() {
   prizes.forEach((p, i) => { for (let k = 0; k < p.count; k++) list.push(i); });
   for (let k = 0; k < opts.blank; k++) list.push(-1);
   list.sort(() => Math.random() - 0.5);
-  // 집게가 길게 떨어지도록 캡슐 더미 높이를 화면의 약 42%로 제한
+  // 집게가 길게 떨어지도록 더미 높이를 화면의 약 42%로 제한 (층이 겹치므로 개수는 더 많음)
   const perRow = Math.floor((L.x1 - L.x0) / (L.R * 2));
   const rows = Math.max(2, Math.floor((H * 0.42) / (L.R * 1.75)));
-  const maxCaps = perRow * rows;
-  list.slice(0, Math.max(10, maxCaps)).forEach((pi, n) => {
-    newCap(pi, L.x0 + L.R + Math.random() * (L.x1 - L.x0 - 2 * L.R), L.floor - L.R - n * L.R * 0.6);
+  const maxCaps = Math.round(perRow * rows * 2.2);
+  list.slice(0, Math.max(12, maxCaps)).forEach((pi, n) => {
+    const li = n % LAYERS;
+    newCap(pi, L.x0 + L.R + Math.random() * (L.x1 - L.x0 - 2 * L.R), L.floor - L.R - n * L.R * 0.35, li);
   });
-  for (let i = 0; i < 900; i++) physics(1 / 120);
+  for (let i = 0; i < 1200; i++) physics(1 / 120);
 }
 
 function respawn(pi) {
@@ -176,24 +194,30 @@ function respawn(pi) {
 }
 
 function physics(h) {
-  const G = H * 3.2, R = L.R;
+  const G = H * 3.2;
   const live = caps.filter(c => !c.gone);
   for (const c of live) {
     if (c.held) continue;
+    const r = rOf(c), fl = floorOf(c), ins = insetOf(c);
     c.vy += G * h;
     c.x += c.vx * h; c.y += c.vy * h;
-    if (c.y > L.floor - R) { c.y = L.floor - R; c.vy *= -0.15; c.vx *= 0.9; }
-    if (c.x < L.x0 + R) { c.x = L.x0 + R; c.vx = Math.abs(c.vx) * 0.3; }
-    if (c.x > L.x1 - R) { c.x = L.x1 - R; c.vx = -Math.abs(c.vx) * 0.3; }
+    if (c.y > fl - r) { c.y = fl - r; c.vy *= -0.15; c.vx *= 0.9; }
+    if (c.x < L.x0 + ins + r) { c.x = L.x0 + ins + r; c.vx = Math.abs(c.vx) * 0.3; }
+    if (c.x > L.x1 - ins - r) { c.x = L.x1 - ins - r; c.vx = -Math.abs(c.vx) * 0.3; }
   }
+  const R2 = L.R * 2;
   for (let it = 0; it < 4; it++) {
     for (let i = 0; i < live.length; i++) {
       const a = live[i];
       for (let j = i + 1; j < live.length; j++) {
         const b = live[j];
-        const dx = b.x - a.x; if (dx > 2 * R || dx < -2 * R) continue;
-        const dy = b.y - a.y; if (dy > 2 * R || dy < -2 * R) continue;
-        const d2 = dx * dx + dy * dy, min = 2 * R - 0.5;
+        // 같은 층끼리는 꽉 부딪히고, 옆 층끼리는 절반만 → 앞뒤로 겹쳐 보임. 두 층 이상 떨어지면 통과
+        const dl = Math.abs(a.li - b.li);
+        if (dl > 1) continue;
+        const dx = b.x - a.x; if (dx > R2 || dx < -R2) continue;
+        const dy = b.y - a.y; if (dy > R2 || dy < -R2) continue;
+        const min = (rOf(a) + rOf(b)) * (dl === 0 ? 0.97 : 0.5);
+        const d2 = dx * dx + dy * dy;
         if (d2 < min * min && d2 > 0.0001) {
           const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ov = min - d;
           const wa = a.held ? 0 : (b.held ? 1 : 0.5), wb = 1 - wa;
@@ -281,11 +305,10 @@ function drawCap(c, alpha = 1) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(c.x, c.y); ctx.rotate(c.a);
-  const zk = 0.92 + (c.z ?? 0.5) * 0.14;          // 깊이에 따른 크기
-  const k = (c.scale || 1) * (c.held ? 1 : zk);
+  const k = c.held ? (c.scale || 1) : zkOf(c);
   ctx.drawImage(sp, -s * k / 2, -s * k / 2, s * k, s * k);
-  if (!c.held && (c.z ?? 0.5) < 0.5) {             // 뒤쪽 캡슐은 살짝 어둡게
-    ctx.fillStyle = `rgba(20,22,28,${(0.5 - c.z) * 0.36})`;
+  if (!c.held && c.z < 0.99) {                      // 뒤층일수록 어둡게 (깊이감)
+    ctx.fillStyle = `rgba(18,20,26,${(1 - c.z) * 0.38})`;
     ctx.beginPath(); ctx.arc(0, 0, L.R * 0.98 * k, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
@@ -430,8 +453,8 @@ function findTarget(x) {
   let best = null;
   for (const c of caps) {
     if (c.gone || c.held) continue;
-    if (Math.abs(c.x - x) >= L.R * STOP) continue;
-    if (!best || c.y < best.y) best = c;
+    if (Math.abs(c.x - x) >= rOf(c) * STOP) continue;
+    if (!best || c.y - rOf(c) < best.y - rOf(best)) best = c;
   }
   return best;
 }
@@ -439,7 +462,7 @@ function judge(x) {
   const c = findTarget(x);
   const z = zone();
   if (!c) return { kind: 'none', zone: z };
-  const dx = x - c.x, off = Math.abs(dx) / L.R;
+  const dx = x - c.x, off = Math.abs(dx) / rOf(c);
   return { kind: off <= z ? 'ok' : 'off', cap: c, dx, off, zone: z };
 }
 const evaluateGrab = () => judge(claw.x);
@@ -506,16 +529,16 @@ function stepGame(h) {
       // 중심선에서 떨어진 캡슐은 옆으로 밀려남 (집게가 사이로 파고듦)
       for (const c of caps) {
         if (c.gone || c.held) continue;
-        const dx = c.x - claw.x, adx = Math.abs(dx);
-        if (adx < L.R * STOP || adx > L.R * 1.25) continue;
-        if (c.y - L.R > ty || c.y + L.R < claw.y) continue;
-        c.x += Math.sign(dx || 1) * (L.R * 1.25 - adx) * 0.2;
+        const dx = c.x - claw.x, adx = Math.abs(dx), rc = rOf(c);
+        if (adx < rc * STOP || adx > rc * 1.25) continue;
+        if (c.y - rc > ty || c.y + rc < claw.y) continue;
+        c.x += Math.sign(dx || 1) * (rc * 1.25 - adx) * 0.2;
         c.vy = Math.min(c.vy, 0);
       }
       const t = findTarget(claw.x);
       const pileTop = caps.reduce((m, c) => (!c.gone && !c.held && Math.abs(c.x - claw.x) < L.R * 1.6) ? Math.min(m, c.y - L.R) : m, L.floor);
       claw.depth = -0.1 * Math.max(0, Math.min(1, (ty - pileTop) / (L.R * 3)));
-      const hit = (t && ty >= t.y - L.R * 0.35) || ty >= L.floor - 3;
+      const hit = (t && ty >= t.y - rOf(t) * 0.35) || ty >= L.floor - 3;
       if (hit) {
         claw.result = evaluateGrab();
         claw.y -= L.clawS * 0.05;
@@ -544,7 +567,7 @@ function stepGame(h) {
       claw.open = Math.max(grip, 1 - claw.t / 0.35);
       if (claw.t >= 0.55) {
         if (r.kind === 'ok') {
-          claw.held = r.cap; r.cap.held = true; r.cap.vx = r.cap.vy = 0; r.cap.z = 0.5;
+          claw.held = r.cap; r.cap.held = true; r.cap.vx = r.cap.vy = 0; r.cap.liftZ = zkOf(r.cap);
           sendCtl({ type: 'fx', kind: 'grab' });
           sound('grab');
         } else if (r.cap) {
@@ -579,7 +602,8 @@ function stepGame(h) {
   if (claw.held) {
     claw.held.x = claw.x + claw.sway;
     claw.held.y = claw.y + L.clawS * 0.66 * (1 + claw.depth);
-    claw.held.scale = (1 + claw.depth) * (0.92 + 0.5 * 0.14);
+    claw.held.scale = (1 + claw.depth) * (claw.held.liftZ || 1);
+    claw.held.a += (0 - claw.held.a) * Math.min(1, h * 5);
   }
   if (!['rise', 'reveal', 'drop', 'impact', 'close'].includes(claw.phase)) claw.depth += (0 - claw.depth) * Math.min(1, h * 5);
   if (!['close', 'rise', 'impact'].includes(claw.phase) && !claw.held) claw.open += (1 - claw.open) * Math.min(1, h * 6);
@@ -848,7 +872,7 @@ function render() {
   ctx.beginPath(); ctx.ellipse(claw.x + claw.sway + L.R * 0.25, claw.y + L.clawS * 0.6, L.clawS * 0.45, L.clawS * 0.6, 0, 0, 7); ctx.fill();
   // 잡는 중인 캡슐은 집게발 사이 층에 그림
   const grabbing = (claw.phase === 'impact' || claw.phase === 'close') && claw.result && claw.result.kind === 'ok' ? claw.result.cap : null;
-  const live = caps.filter(c => !c.gone && !c.held && c !== grabbing).sort((a, b) => a.z - b.z);
+  const live = caps.filter(c => !c.gone && !c.held && c !== grabbing).sort((a, b) => a.li - b.li || a.y - b.y);
   const back = live.filter(c => c.z < 0.5), front = live.filter(c => c.z >= 0.5);
   drawGuide();
   for (const c of back) drawCap(c);
@@ -1056,7 +1080,8 @@ document.getElementById('saveSettings').onclick = () => {
   save(OPT_KEY, opts);
   spriteCache.clear();
   modal.classList.remove('show');
-  claw.held = null; claw.phase = 'ready'; claw.y = L.restY;
+  claw.held = null; claw.phase = 'ready';
+  resize(); claw.y = L.restY;
   refill();
 };
 
