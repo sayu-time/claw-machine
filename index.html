@@ -3,167 +3,159 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>인형뽑기</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<title>럭키 캡슐</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Bebas+Neue&display=swap">
 <style>
   :root {
-    --bg: #120a24; --panel: #22163f; --panel2: #2f2057; --text: #fff6fb; --muted: #c2b3e6;
-    --pink: #ff5fa2; --yellow: #ffd23f; --mint: #3ee6c1; --red: #ff5f5f; --line: rgba(255,255,255,.1);
+    --bg: #0d0d10; --panel2: #2c2c35; --text: #f6f6f8; --muted: #a9a9b6;
+    --lime: #b6f24a; --peach: #ffd9c4; --line: rgba(255,255,255,.12);
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; }
-  body { background: var(--bg); color: var(--text); font-family: 'Jua', system-ui, sans-serif; overflow: hidden; }
-  #stage { position: fixed; inset: 0; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: 'Jua', system-ui, sans-serif; overflow: hidden; }
+  #stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); overflow: hidden; background: #6f7378; }
   #stage canvas { display: block; width: 100%; height: 100%; }
-  /* 시작 화면 */
-  #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: radial-gradient(ellipse at center, rgba(18,10,36,.25), rgba(18,10,36,.7)); z-index: 5; transition: opacity .4s; }
+
+  /* 상단 버튼 (시작 화면에서만) */
+  .topbar { position: absolute; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between; gap: 8px; z-index: 6; transition: opacity .3s; }
+  .seg { display: flex; background: rgba(0,0,0,.45); border-radius: 99px; padding: 4px; backdrop-filter: blur(6px); }
+  .seg button { border: 0; background: transparent; color: #ddd; font: inherit; font-size: 14px; padding: 7px 12px; border-radius: 99px; cursor: pointer; }
+  .seg button.on { background: #fff; color: #222; }
+  .iconBtn { border: 0; background: rgba(0,0,0,.45); color: #fff; font: inherit; font-size: 14px; padding: 9px 14px; border-radius: 99px; cursor: pointer; backdrop-filter: blur(6px); }
+  body.playing .topbar { opacity: 0; pointer-events: none; }
+
+  /* 시작 화면 QR (캡슐 더미 위) */
+  #start { position: absolute; left: 50%; transform: translateX(-50%); bottom: 8%; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; transition: opacity .4s; width: 90%; }
   #start.hide { opacity: 0; pointer-events: none; }
-  .startCard { width: min(400px, 100%); max-height: 100%; overflow: auto; background: rgba(34,22,63,.88); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 26px; padding: 22px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
-  .startCard h1 { font-size: 40px; }
-  .startCard .row2 { display: flex; gap: 10px; margin-top: 14px; }
-  .startCard .row2 button { flex: 1; }
-  #status { justify-content: center; }
-  #qrBox { margin: 14px auto 8px; width: 220px; }
-  #historyWrap { margin-top: 14px; text-align: left; font-size: 14px; color: var(--muted); }
-  #historyWrap summary { cursor: pointer; }
-  #demoBadge { top: 18px; left: 22px; font-size: 14px; background: rgba(255,95,162,.85); padding: 6px 14px; border-radius: 99px; letter-spacing: 1px; animation: blink 1.4s infinite; }
-  @keyframes blink { 50% { opacity: .55; } }
-  #corner { position: absolute; right: 16px; bottom: 16px; z-index: 4; display: none; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); background: rgba(0,0,0,.35); padding: 6px 12px; border-radius: 99px; }
-  #corner.show { display: flex; }
-  h1 { margin: 0 0 4px; font-size: 32px; color: var(--yellow); text-shadow: 0 3px 0 #b8387a; }
-  .sub { color: var(--muted); font-size: 14px; line-height: 1.4; }
-  #qrBox { background: #fff; border-radius: 14px; padding: 10px; display: flex; justify-content: center; margin: 12px 0 8px; min-height: 200px; align-items: center; color: #333; font-size: 13px; text-align: center; }
-  #qrBox img, #qrBox canvas { width: 200px !important; height: 200px !important; }
-  #link { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); word-break: break-all; }
-  #status { display: flex; align-items: center; gap: 8px; font-size: 17px; margin-top: 10px; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: #777; flex: none; }
-  .dot.on { background: var(--mint); box-shadow: 0 0 10px var(--mint); }
-  button { font-family: inherit; font-size: 16px; border: 0; border-radius: 14px; padding: 11px 14px; cursor: pointer; color: #2a1a52; background: var(--yellow); box-shadow: 0 4px 0 #b88f00; }
-  button:active { transform: translateY(2px); box-shadow: 0 2px 0 #b88f00; }
-  button.ghost { background: var(--panel2); color: var(--text); box-shadow: 0 4px 0 #120a28; }
-  #historyList { margin: 8px 0 0; padding-left: 22px; }
-  #historyList li { margin: 4px 0; }
-  .keys { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  #qrBox { background: #fff; padding: 10px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); line-height: 0; }
+  #qrBox img, #qrBox canvas { width: var(--qr, 150px) !important; height: var(--qr, 150px) !important; }
+  #startText { font-size: clamp(14px, 2.4vmin, 24px); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.8); line-height: 1.4; }
+  #startText b { color: var(--lime); }
+  #status { font-size: 13px; color: #fff; background: rgba(0,0,0,.5); padding: 5px 12px; border-radius: 99px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
+  .dot.on { background: var(--lime); box-shadow: 0 0 8px var(--lime); }
 
   /* HUD */
-  .hud { position: absolute; pointer-events: none; }
-  #timer { top: 18px; left: 22px; font-size: 44px; color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,.4); display: none; }
+  .hud { position: absolute; pointer-events: none; z-index: 4; }
+  #timer { top: 4%; right: 6%; font-family: 'Bebas Neue', sans-serif; font-size: clamp(36px, 8vmin, 80px); color: #fff; text-shadow: 0 3px 8px rgba(0,0,0,.5); display: none; }
   #timer.low { color: #ff6b6b; }
-  #phaseMsg { top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.45); padding: 10px 22px; border-radius: 99px; font-size: 22px; white-space: nowrap; display: none; }
-  #hint { left: 50%; top: 45%; transform: translate(-50%, -50%); background: rgba(10,5,25,.6); padding: 18px 30px; border-radius: 22px; font-size: 26px; text-align: center; }
-  #camLabel { right: 18px; top: 18px; font-size: 14px; background: rgba(0,0,0,.4); padding: 6px 12px; border-radius: 99px; color: var(--muted); }
-  #analysis { left: 50%; bottom: 22px; transform: translateX(-50%); width: min(560px, 92%); background: rgba(18,10,36,.88); border: 1px solid var(--line); border-radius: 20px; padding: 16px 20px; display: none; backdrop-filter: blur(6px); }
-  #analysis.show { display: block; animation: up .35s ease-out; }
-  #analysis h3 { margin: 0 0 6px; font-size: 26px; }
-  #analysis .detail { color: var(--muted); font-size: 15px; margin-bottom: 10px; line-height: 1.45; }
-  .bar { display: grid; grid-template-columns: 70px 1fr 48px; gap: 10px; align-items: center; font-size: 14px; margin: 5px 0; }
-  .bar .track { height: 10px; background: #ffffff1a; border-radius: 99px; overflow: hidden; position: relative; }
-  .bar .fill { height: 100%; border-radius: 99px; background: var(--mint); }
-  .bar.total .fill { background: var(--yellow); }
-  .bar .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; }
-  @keyframes up { from { transform: translate(-50%, 20px); opacity: 0; } }
+  #hint { left: 50%; top: 42%; transform: translate(-50%, -50%); background: rgba(0,0,0,.45); padding: 12px 22px; border-radius: 99px; font-size: clamp(14px, 2.6vmin, 24px); display: none; white-space: nowrap; }
+  #toast { left: 50%; top: 32%; transform: translate(-50%, -50%) scale(.8); font-size: clamp(24px, 5.5vmin, 52px); color: #fff; text-shadow: 0 3px 10px rgba(0,0,0,.6); opacity: 0; transition: all .25s; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+  /* ===== 3D 캡슐 개봉 연출 ===== */
+  #reveal { position: absolute; inset: 0; z-index: 8; pointer-events: none; perspective: 900px; display: none; }
+  #reveal.show { display: block; }
+  #reveal .dim { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.15), rgba(0,0,0,.7) 70%); opacity: 0; transition: opacity .5s; }
+  #reveal.on .dim { opacity: 1; }
+  .cap3d { position: absolute; width: var(--s); height: var(--s); left: 0; top: 0; transform-style: preserve-3d; will-change: transform; }
+  .cap3d .half { position: absolute; left: 0; width: 100%; height: 50%; transition: transform .7s cubic-bezier(.3,1.6,.5,1); }
+  .cap3d .top { top: 0; border-radius: var(--s) var(--s) 0 0; transform-origin: 50% 100%; z-index: 2;
+    background: radial-gradient(circle at 32% 40%, rgba(255,255,255,.95) 0 5%, rgba(255,255,255,.35) 13%, transparent 28%), radial-gradient(ellipse at 50% 100%, var(--c2) 0%, var(--c) 55%, var(--c3) 100%);
+    box-shadow: inset 0 -6px 10px rgba(0,0,0,.12); }
+  .cap3d .bot { bottom: 0; border-radius: 0 0 var(--s) var(--s); transform-origin: 50% 0%;
+    background: radial-gradient(ellipse at 50% 0%, #fff 0%, #f1efe9 55%, #bdb9b1 100%);
+    box-shadow: inset 0 8px 10px rgba(0,0,0,.08); }
+  .cap3d .seam { position: absolute; left: -1%; right: -1%; top: calc(50% - 3px); height: 6px; background: linear-gradient(#fff, #d8d4cc); border-radius: 3px; z-index: 3; transition: opacity .2s; }
+  .cap3d.open .top { transform: translateY(-45%) rotateX(-120deg); }
+  .cap3d.open .bot { transform: translateY(35%) rotateX(40deg); }
+  .cap3d.open .seam { opacity: 0; }
+  .prize3d { position: absolute; left: 50%; top: 50%; z-index: 1; transform: translate(-50%, -50%) scale(0); font-size: calc(var(--s) * .62); line-height: 1; transition: transform .7s cubic-bezier(.2,1.8,.4,1) .15s; filter: drop-shadow(0 12px 18px rgba(0,0,0,.35)); }
+  .prize3d img { width: calc(var(--s) * .8); height: calc(var(--s) * .8); border-radius: 50%; object-fit: cover; border: 5px solid #fff; display: block; }
+  .cap3d.open .prize3d { transform: translate(-50%, -80%) scale(1.1); z-index: 4; }
+  .rays { position: absolute; left: 50%; top: 45%; width: 160vmax; height: 160vmax; transform: translate(-50%, -50%) scale(0); background: repeating-conic-gradient(rgba(255,240,180,.25) 0 8deg, transparent 8deg 20deg); border-radius: 50%; transition: transform .8s ease-out; animation: spin 14s linear infinite; -webkit-mask: radial-gradient(circle, #000 0, transparent 45%); mask: radial-gradient(circle, #000 0, transparent 45%); }
+  #reveal.burst .rays { transform: translate(-50%, -50%) scale(1); }
+  #reveal.blank .rays { display: none; }
+  @keyframes spin { to { rotate: 360deg; } }
+  .card { position: absolute; left: 50%; bottom: 9%; transform: translate(-50%, 30px); opacity: 0; transition: all .5s cubic-bezier(.2,1.4,.4,1) .35s; background: var(--peach); color: #3a2418; padding: 14px 30px; border-radius: 22px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,.35); min-width: 220px; }
+  .card h3 { margin: 0; font-size: clamp(22px, 5vmin, 44px); }
+  .card p { margin: 4px 0 0; font-size: clamp(13px, 2.2vmin, 18px); opacity: .75; }
+  #reveal.burst .card { transform: translate(-50%, 0); opacity: 1; }
+  .spark { position: absolute; border-radius: 50%; left: 50%; top: 45%; pointer-events: none; }
 
   /* 설정 모달 */
-  .modal { position: fixed; inset: 0; background: rgba(10,5,25,.7); display: none; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
   .modal.show { display: flex; }
-  .sheet { background: var(--panel); border-radius: 24px; padding: 22px; width: min(780px, 100%); max-height: 92vh; display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--line); }
-  .sheet h2 { margin: 0; color: var(--yellow); }
-  #prizeList { overflow: auto; display: flex; flex-direction: column; gap: 10px; }
-  .row, .hdr { display: grid; grid-template-columns: 60px 1fr 80px 70px 100px 40px; gap: 8px; align-items: center; }
-  .row { background: var(--panel2); padding: 10px; border-radius: 14px; }
-  .hdr { font-size: 13px; color: var(--muted); padding: 0 10px; }
-  .row .thumb { width: 60px; height: 60px; border-radius: 50%; background: #fff2; display: flex; align-items: center; justify-content: center; font-size: 34px; overflow: hidden; cursor: pointer; }
-  .row .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .row input, .row select, .opts select { font: inherit; font-size: 16px; width: 100%; padding: 8px; border-radius: 10px; border: 0; background: #fff; color: #2a1a52; }
-  .row .del { background: var(--red); color: #fff; box-shadow: 0 4px 0 #a33; padding: 8px; }
-  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--panel2); padding: 12px; border-radius: 14px; }
-  .opts label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
-  .actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
-  .actions .left { margin-right: auto; display: flex; gap: 10px; }
+  .sheet { background: #1d1d24; border-radius: 22px; padding: 20px; width: min(760px, 100%); max-height: 92vh; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--line); }
+  .sheet h2 { margin: 0; color: var(--lime); }
   .hint2 { font-size: 13px; color: var(--muted); line-height: 1.5; }
-
-  /* 당첨 */
-  #win { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; background: rgba(10,5,25,.5); }
-  #win.show { display: flex; }
-  #win .box { background: linear-gradient(160deg, #ff8cc0, #ff5fa2); border-radius: 32px; padding: 30px 50px; text-align: center; box-shadow: 0 0 0 8px var(--yellow), 0 30px 80px rgba(0,0,0,.5); animation: pop .5s cubic-bezier(.2,1.6,.4,1); }
-  #win .big { font-size: 120px; line-height: 1.1; }
-  #win .big img { width: 160px; height: 160px; border-radius: 50%; object-fit: cover; border: 6px solid #fff; }
-  #win h3 { font-size: 30px; margin: 10px 0 0; }
-  #win p { font-size: 44px; margin: 6px 0 0; text-shadow: 0 3px 0 #b8387a; }
-  @keyframes pop { from { transform: scale(.3) rotate(-10deg); } }
-  #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--muted); }
-
-  @media (max-width: 700px) {
-    .row, .hdr { grid-template-columns: 50px 1fr 64px 60px 84px 36px; }
-  }
+  .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: var(--panel2); padding: 12px; border-radius: 14px; }
+  .opts label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  #prizeList { overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+  .row, .hdr { display: grid; grid-template-columns: 56px 1fr 80px 80px 40px; gap: 8px; align-items: center; }
+  .row { background: var(--panel2); padding: 8px; border-radius: 12px; }
+  .hdr { font-size: 12px; color: var(--muted); padding: 0 8px; }
+  .thumb { width: 56px; height: 56px; border-radius: 50%; background: #fff2; display: flex; align-items: center; justify-content: center; font-size: 30px; overflow: hidden; cursor: pointer; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .row input, .opts select, .opts input { font: inherit; font-size: 15px; width: 100%; padding: 8px; border-radius: 10px; border: 0; background: #fff; color: #222; }
+  button.btn { font-family: inherit; font-size: 15px; border: 0; border-radius: 12px; padding: 10px 14px; cursor: pointer; background: var(--lime); color: #1a2a05; }
+  button.btn.ghost { background: var(--panel2); color: var(--text); }
+  button.del { background: #ff5f5f; color: #fff; border: 0; border-radius: 10px; padding: 8px; cursor: pointer; font: inherit; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .actions .left { margin-right: auto; display: flex; gap: 8px; }
+  #history { font-size: 13px; color: var(--muted); max-height: 90px; overflow: auto; line-height: 1.6; }
+  @media (max-width: 600px) { .opts { grid-template-columns: 1fr 1fr; } .row, .hdr { grid-template-columns: 48px 1fr 64px 64px 36px; } }
 </style>
 </head>
 <body>
   <div id="stage">
-    <div id="loading">기계 준비 중…</div>
-    <div class="hud" id="demoBadge">DEMO · 시연 중</div>
-    <div class="hud" id="timer">30</div>
-    <div class="hud" id="phaseMsg"></div>
-    <div class="hud" id="camLabel">📷 정면</div>
-    <div class="hud" id="hint"></div>
-    <div class="hud" id="analysis"></div>
-    <div id="corner"><span class="dot on" id="dot2"></span><span id="cornerText">📱 연결됨</span></div>
+    <canvas id="game"></canvas>
+
+    <div class="topbar">
+      <div class="seg" id="orient">
+        <button data-o="auto">자동</button><button data-o="landscape">가로</button><button data-o="portrait">세로</button>
+      </div>
+      <button class="iconBtn" id="openSettings">⚙️ 상품 설정</button>
+    </div>
 
     <div id="start">
-      <div class="startCard">
-        <h1>인형뽑기</h1>
-        <div class="sub">폰으로 QR을 찍으면 게임패드가 돼요 · 와이파이·LTE 상관없음</div>
-        <div id="qrBox">QR 만드는 중…</div>
-        <div id="link"></div>
-        <div id="status"><span class="dot" id="dot"></span><span id="statusText">중계 서버 연결 중…</span></div>
-        <div class="row2">
-          <button id="openSettings">🎁 상품 설정</button>
-          <button id="refill" class="ghost" title="기계 다시 채우기">🔄 다시 채우기</button>
-        </div>
-        <div class="keys">PC로 하기: 방향키/WASD 이동 · Space 뽑기 · C 시점 · Esc 시작화면</div>
-        <details id="historyWrap"><summary>🏆 뽑은 상품</summary><ol id="historyList"></ol></details>
+      <div id="qrBox"></div>
+      <div id="startText">QR을 찍고 <b>럭키 캡슐</b>에 참여하세요!<br>폰이 게임패드가 돼요</div>
+      <div id="status"><span class="dot" id="dot"></span><span id="statusText">연결 준비 중…</span></div>
+    </div>
+
+    <div class="hud" id="timer">20</div>
+    <div class="hud" id="hint"></div>
+    <div class="hud" id="toast"></div>
+
+    <div id="reveal">
+      <div class="dim"></div>
+      <div class="rays"></div>
+      <div class="cap3d" id="cap3d">
+        <div class="half bot"></div>
+        <div class="prize3d" id="prize3d"></div>
+        <div class="half top"></div>
+        <div class="seam"></div>
       </div>
+      <div class="card"><h3 id="revealTitle"></h3><p id="revealSub"></p></div>
     </div>
   </div>
 
   <div class="modal" id="settings">
     <div class="sheet">
-      <h2>🎁 상품 설정</h2>
-      <div class="hint2">동그라미를 누르면 사진을 넣을 수 있어요. 결과는 확률이 아니라 실력으로 정해져요. 큰 인형일수록 집게에 잘 안 걸려서 어려워요.</div>
+      <h2>⚙️ 상품 설정</h2>
+      <div class="hint2">캡슐 안에 들어갈 상품을 정하세요. 수량만큼 캡슐이 생겨요. 동그라미를 누르면 사진을 넣을 수 있어요.</div>
       <div class="opts">
-        <div><label>집게 힘</label>
-          <select id="optStrength"><option value="0.82">약함 (어려움)</option><option value="0.95">보통</option><option value="1.1">강함 (쉬움)</option></select></div>
+        <div><label>꽝 캡슐 수</label><input type="number" id="optBlank" min="0" max="60"></div>
+        <div><label>난이도 (집게 정확도)</label>
+          <select id="optDiff"><option value="0.35">쉬움</option><option value="0.55">보통</option><option value="0.72">어려움</option></select></div>
         <div><label>한 판 시간</label>
-          <select id="optTime"><option value="20">20초</option><option value="30">30초</option><option value="45">45초</option><option value="60">60초</option></select></div>
+          <select id="optTime"><option value="10">10초</option><option value="15">15초</option><option value="20">20초</option><option value="30">30초</option></select></div>
       </div>
-      <div class="hdr"><span>사진</span><span>이름</span><span>이모지</span><span>수량</span><span>크기</span><span></span></div>
+      <div class="hdr"><span>사진</span><span>이름</span><span>이모지</span><span>수량</span><span></span></div>
       <div id="prizeList"></div>
+      <details><summary class="hint2">🏆 당첨 기록</summary><div id="history"></div></details>
       <div class="actions">
-        <div class="left">
-          <button class="ghost" id="addPrize">＋ 상품 추가</button>
-          <button class="ghost" id="resetPrizes">기본값</button>
-        </div>
-        <button class="ghost" id="cancelSettings">취소</button>
-        <button id="saveSettings">저장하고 다시 채우기</button>
+        <div class="left"><button class="btn ghost" id="addPrize">＋ 상품 추가</button><button class="btn ghost" id="resetPrizes">기본값</button></div>
+        <button class="btn ghost" id="cancelSettings">취소</button>
+        <button class="btn" id="saveSettings">저장하고 다시 채우기</button>
       </div>
     </div>
   </div>
   <input type="file" id="filePick" accept="image/*" hidden>
 
-  <div id="win"><div class="box"><div class="big" id="winIcon"></div><h3 id="winName"></h3><p>🎉 당첨! 🎉</p></div></div>
-
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-      "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
-    }
-  }
-  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
   <script src="net.js"></script>
-  <script type="module" src="game3d.js"></script>
+  <script src="game.js"></script>
 </body>
 </html>
