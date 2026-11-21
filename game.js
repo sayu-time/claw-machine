@@ -60,7 +60,10 @@ function applyOrientation() {
 function resize() {
   const oldW = W, oldH = H, oldR = L.R;
   W = stage.clientWidth; H = stage.clientHeight;
-  DPR = Math.min(devicePixelRatio || 1, 2);
+  // 선명하게: 최소 2배 해상도로 그림 (너무 큰 화면은 성능을 위해 약 4K 픽셀 수로 제한)
+  DPR = Math.min(3, Math.max(2, devicePixelRatio || 1));
+  const maxPx = 3840 * 2160 * 1.1;
+  if (W * H * DPR * DPR > maxPx) DPR = Math.max(1, Math.sqrt(maxPx / (W * H)));
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   const m = Math.min(W, H);
   L = {
@@ -245,7 +248,7 @@ function getImg(src) {
   return im.complete && im.naturalWidth ? im : null;
 }
 function capSprite(ci, pi) {
-  const key = ci + '|' + pi;
+  const key = String(ci);
   if (spriteCache.has(key)) return spriteCache.get(key);
   const R = L.R, s = Math.ceil(R * 2 * DPR + 4);
   const c = document.createElement('canvas'); c.width = c.height = s;
@@ -273,14 +276,7 @@ function capSprite(ci, pi) {
     const tg = g.createRadialGradient(0, 0, R * 0.1, 0, -R * 0.2, R * 1.05);
     tg.addColorStop(0, col.c2); tg.addColorStop(0.55, col.c); tg.addColorStop(1, col.c3);
     g.fillStyle = tg; g.fillRect(-R, -R, R * 2, R);
-    const p = prizes[pi];
-    if (p) {
-      g.globalAlpha = 0.5;
-      const im = getImg(p.img);
-      if (im) { g.beginPath(); g.arc(0, -R * 0.12, R * 0.48, 0, 7); g.clip(); g.drawImage(im, -R * 0.48, -R * 0.6, R * 0.96, R * 0.96); }
-      else { g.font = `${R * 0.8}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.emoji || '🎁', 0, -R * 0.12); }
-      g.globalAlpha = 1;
-    }
+    // 안의 상품은 보이지 않음 (열어봐야 앎)
   }
   g.restore();
   // 이음매
@@ -714,9 +710,10 @@ function startReveal(c) {
   const S = Math.min(W, H) * 0.36;
   cap3d.style.setProperty('--s', S + 'px');
   cap3d.style.setProperty('--c', col.c); cap3d.style.setProperty('--c2', col.c2); cap3d.style.setProperty('--c3', col.c3);
-  prize3d.innerHTML = isPrize ? (p.img ? `<img src="${p.img}">` : (p.emoji || '🎁')) : '💨';
+  prize3d.innerHTML = isPrize ? (p.img ? `<img class="photo" src="${p.img}">` : (p.emoji || '🎁')) : '💨';
+  prize3d.classList.toggle('hasPhoto', !!(isPrize && p.img));
   document.getElementById('revealTitle').textContent = isPrize ? `${p.name} 당첨!` : '꽝!';
-  document.getElementById('revealSub').textContent = isPrize ? (mode === 'demo' ? '시연 중이에요 · QR을 찍고 직접 해보세요' : '축하해요! 직원에게 화면을 보여주세요') : '다음 기회에…';
+  document.getElementById('revealSub').textContent = isPrize ? (mode === 'demo' ? '시연 중이에요 · QR을 찍고 직접 해보세요' : (p.desc ? p.desc : '축하해요! 직원에게 화면을 보여주세요')) : '다음 기회에…';
   revealEl.classList.remove('burst', 'blank', 'on');
   revealEl.classList.toggle('blank', !isPrize);
   cap3d.classList.remove('open');
@@ -744,7 +741,7 @@ function startReveal(c) {
       revealEl.classList.add('burst');
       sound(isPrize ? 'win' : 'blank');
       if (isPrize) sparks();
-      if (mode === 'game') sendCtl({ type: 'result', ok: isPrize, title: isPrize ? `${p.name} 당첨!` : '꽝!', detail: isPrize ? '축하해요! 🎉' : '다음 기회에…', emoji: isPrize ? p.emoji : '💨', img: isPrize && p.img && p.img.length < 150000 ? p.img : '', judge: jd });
+      if (mode === 'game') sendCtl({ type: 'result', ok: isPrize, title: isPrize ? `${p.name} 당첨!` : '꽝!', detail: isPrize ? (p.desc || '축하해요! 🎉') : '다음 기회에…', emoji: isPrize ? p.emoji : '💨', img: isPrize && p.img && p.img.length < 400000 ? p.img : '', judge: jd });
       setTimeout(endReveal, isPrize ? 3600 : 2200);
     };
   };
@@ -1030,16 +1027,24 @@ function renderDraft() {
     const row = document.createElement('div');
     row.className = 'row';
     row.innerHTML = `
-      <div class="thumb" title="눌러서 사진 넣기">${p.img ? `<img src="${p.img}">` : esc(p.emoji || '🎁')}</div>
-      <input data-k="name" value="${esc(p.name)}" placeholder="상품 이름" maxlength="20">
-      <input data-k="emoji" value="${esc(p.emoji || '')}" placeholder="🎁" maxlength="4">
+      <div class="photoCol">
+        <div class="thumb" title="사진 넣기">${p.img ? `<img src="${p.img}">` : esc(p.emoji || '🎁')}</div>
+        <button class="pick">${p.img ? '사진 바꾸기' : '📷 사진 넣기'}</button>
+        ${p.img ? '<button class="unpick">사진 빼기</button>' : ''}
+      </div>
+      <div class="info">
+        <input data-k="name" value="${esc(p.name)}" placeholder="상품 이름" maxlength="24">
+        <textarea data-k="desc" placeholder="상품 설명 (뽑았을 때 보여줘요)" maxlength="80" rows="2">${esc(p.desc || '')}</textarea>
+      </div>
+      <input data-k="emoji" value="${esc(p.emoji || '')}" placeholder="🎁" maxlength="4" title="사진이 없을 때 보여줄 이모지">
       <input data-k="count" type="number" min="0" max="60" value="${p.count}">
       <button class="del" title="삭제">✕</button>`;
-    row.querySelector('.thumb').onclick = () => {
-      if (p.img && confirm('사진을 지우고 이모지로 돌아갈까요?')) { p.img = ''; renderDraft(); return; }
-      pickFor = i; filePick.value = ''; filePick.click();
-    };
-    row.querySelectorAll('input').forEach(inp => inp.oninput = () => {
+    const pick = () => { pickFor = i; filePick.value = ''; filePick.click(); };
+    row.querySelector('.thumb').onclick = pick;
+    row.querySelector('.pick').onclick = pick;
+    const un = row.querySelector('.unpick');
+    if (un) un.onclick = () => { p.img = ''; renderDraft(); };
+    row.querySelectorAll('input, textarea').forEach(inp => inp.oninput = () => {
       const k = inp.dataset.k;
       p[k] = k === 'count' ? Math.max(0, Math.min(60, Number(inp.value) || 0)) : inp.value;
       if (k === 'emoji' && !p.img) row.querySelector('.thumb').textContent = p.emoji || '🎁';
@@ -1055,10 +1060,15 @@ filePick.onchange = () => {
   reader.onload = () => {
     const im = new Image();
     im.onload = () => {
-      const c = document.createElement('canvas'); c.width = c.height = 200;
-      const s = Math.min(im.width, im.height);
-      c.getContext('2d').drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, 0, 0, 200, 200);
-      draft[pickFor].img = c.toDataURL('image/jpeg', 0.85);
+      // 원본 비율 유지, 긴 쪽 640px로 줄여 저장 (개봉 연출에서 선명하게)
+      const max = 640, k = Math.min(1, max / Math.max(im.width, im.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      const cx = c.getContext('2d');
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+      cx.imageSmoothingQuality = 'high';
+      cx.drawImage(im, 0, 0, c.width, c.height);
+      draft[pickFor].img = c.toDataURL('image/jpeg', 0.86);
       renderDraft();
     };
     im.src = reader.result;
@@ -1067,7 +1077,7 @@ filePick.onchange = () => {
 };
 document.getElementById('openSettings').onclick = openSettings;
 document.getElementById('cancelSettings').onclick = () => modal.classList.remove('show');
-document.getElementById('addPrize').onclick = () => { draft.push({ name: '새 상품', emoji: '🎁', img: '', count: 3 }); renderDraft(); listEl.scrollTop = listEl.scrollHeight; };
+document.getElementById('addPrize').onclick = () => { draft.push({ name: '새 상품', emoji: '🎁', img: '', desc: '', count: 3 }); renderDraft(); listEl.scrollTop = listEl.scrollHeight; };
 document.getElementById('resetPrizes').onclick = () => { if (confirm('기본 상품으로 되돌릴까요?')) { draft = structuredClone(DEFAULT_PRIZES); renderDraft(); } };
 document.getElementById('saveSettings').onclick = () => {
   const clean = draft.filter(p => String(p.name).trim());
