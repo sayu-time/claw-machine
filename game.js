@@ -69,8 +69,8 @@ function resize() {
     R: Math.min(W / 16, H / 14),  // 캡슐 반지름
   };
   L.x0 = L.d * 0.35; L.x1 = W - L.d * 0.35; L.floor = H;
-  L.restY = L.lip + L.R * 0.4;    // 집게 머리 대기 높이
-  L.clawS = L.R * 1.25;           // 집게 크기
+  L.clawS = L.R * 2.1;            // 집게 크기 (캡슐보다 크게)
+  L.restY = L.lip + L.clawS * 0.55; // 집게 대기 높이 (높이 매달려 있다가 길게 떨어짐)
   stage.style.setProperty('--qr', Math.round(Math.max(110, Math.min(220, m * 0.22))) + 'px');
   bgCanvas = makeBackground();
   spriteCache.clear();
@@ -150,7 +150,7 @@ let uid = 0;
 function newCap(pi, x, y) {
   const silverChance = pi >= 0 && prizes[pi] && prizes[pi].count <= 1 ? 0.7 : 0.08; // 귀한 상품은 은색일 확률 높음
   const ci = Math.random() < silverChance ? 7 : Math.floor(Math.random() * 7);
-  const c = { id: ++uid, pi, ci, x, y, vx: (Math.random() - 0.5) * 40, vy: 0, a: Math.random() * Math.PI * 2, va: 0, held: false, gone: false };
+  const c = { id: ++uid, pi, ci, z: Math.random(), x, y, vx: (Math.random() - 0.5) * 40, vy: 0, a: 0, va: 0, held: false, gone: false };
   caps.push(c);
   return c;
 }
@@ -161,7 +161,10 @@ function refill() {
   prizes.forEach((p, i) => { for (let k = 0; k < p.count; k++) list.push(i); });
   for (let k = 0; k < opts.blank; k++) list.push(-1);
   list.sort(() => Math.random() - 0.5);
-  const maxCaps = Math.floor(((L.x1 - L.x0) / (L.R * 2)) * 7);
+  // 집게가 길게 떨어지도록 캡슐 더미 높이를 화면의 약 42%로 제한
+  const perRow = Math.floor((L.x1 - L.x0) / (L.R * 2));
+  const rows = Math.max(2, Math.floor((H * 0.42) / (L.R * 1.75)));
+  const maxCaps = perRow * rows;
   list.slice(0, Math.max(10, maxCaps)).forEach((pi, n) => {
     newCap(pi, L.x0 + L.R + Math.random() * (L.x1 - L.x0 - 2 * L.R), L.floor - L.R - n * L.R * 0.6);
   });
@@ -179,8 +182,7 @@ function physics(h) {
     if (c.held) continue;
     c.vy += G * h;
     c.x += c.vx * h; c.y += c.vy * h;
-    c.a += c.va * h; c.va *= 0.985;
-    if (c.y > L.floor - R) { c.y = L.floor - R; c.vy *= -0.15; c.vx *= 0.9; c.va = c.vx / R; }
+    if (c.y > L.floor - R) { c.y = L.floor - R; c.vy *= -0.15; c.vx *= 0.9; }
     if (c.x < L.x0 + R) { c.x = L.x0 + R; c.vx = Math.abs(c.vx) * 0.3; }
     if (c.x > L.x1 - R) { c.x = L.x1 - R; c.vx = -Math.abs(c.vx) * 0.3; }
   }
@@ -202,8 +204,6 @@ function physics(h) {
             const imp = -rv * 0.55;
             if (!a.held) { a.vx -= nx * imp * wa * 2; a.vy -= ny * imp * wa * 2; }
             if (!b.held) { b.vx += nx * imp * wb * 2; b.vy += ny * imp * wb * 2; }
-            const tang = (b.vx - a.vx) * -ny + (b.vy - a.vy) * nx;
-            a.va += tang / R * 0.05; b.va -= tang / R * 0.05;
           }
         }
       }
@@ -281,7 +281,13 @@ function drawCap(c, alpha = 1) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(c.x, c.y); ctx.rotate(c.a);
-  ctx.drawImage(sp, -s / 2, -s / 2, s, s);
+  const zk = 0.92 + (c.z ?? 0.5) * 0.14;          // 깊이에 따른 크기
+  const k = (c.scale || 1) * (c.held ? 1 : zk);
+  ctx.drawImage(sp, -s * k / 2, -s * k / 2, s * k, s * k);
+  if (!c.held && (c.z ?? 0.5) < 0.5) {             // 뒤쪽 캡슐은 살짝 어둡게
+    ctx.fillStyle = `rgba(20,22,28,${(0.5 - c.z) * 0.36})`;
+    ctx.beginPath(); ctx.arc(0, 0, L.R * 0.98 * k, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -290,40 +296,153 @@ function drawCap(c, alpha = 1) {
 // ------------------------------------------------------------------
 const claw = {
   x: 0, y: 0, vx: 0, vy: 0, open: 1, phase: 'ready', t: 0, timer: 15,
-  held: null, slipAt: Infinity, riseFrom: 0, result: null, sway: 0, swayV: 0,
+  held: null, riseFrom: 0, result: null, sway: 0, swayV: 0, depth: 0,
 };
 const input = { left: false, right: false };
 const keys = { left: false, right: false };
+let shake = 0, zoom = 0;
 
-function tipY() { return claw.y + L.clawS * 1.0; }
+function tipY() { return claw.y + L.clawS * 0.95; }
+function railY() { return L.lip + L.clawS * 0.06; }
 
-function drawClaw() {
+// 집게발 어깨/관절/끝 위치 (o: 벌림 정도 0~1)
+function prongGeo(k, o) {
   const s = L.clawS, x = claw.x + claw.sway, y = claw.y;
-  // 줄
-  ctx.strokeStyle = 'rgba(235,240,230,.85)'; ctx.lineWidth = Math.max(1, s * 0.025);
-  ctx.beginPath(); ctx.moveTo(claw.x, 0); ctx.lineTo(x, y - s * 0.12); ctx.stroke();
-  const o = claw.open;
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  // 뒤쪽 가운데 발 (얇고 어둡게)
-  ctx.strokeStyle = '#6f9e22'; ctx.lineWidth = s * 0.07;
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + s * 0.05, y + s * 0.55, x, y + s * 0.92); ctx.stroke();
-  // 좌우 발
-  for (const k of [-1, 1]) {
-    const mx = x + k * (s * 0.22 + o * s * 0.42), my = y + s * 0.5;
-    const tx = x + k * (s * 0.1 + o * s * 0.3), ty = y + s * 1.0;
-    ctx.strokeStyle = '#4f7a12'; ctx.lineWidth = s * 0.11;
-    ctx.beginPath(); ctx.moveTo(x + k * s * 0.08, y + s * 0.05); ctx.quadraticCurveTo(mx + k * s * 0.08, my - s * 0.15, mx, my); ctx.quadraticCurveTo(mx - k * s * 0.02, my + s * 0.3, tx, ty); ctx.stroke();
-    ctx.strokeStyle = '#a8e83c'; ctx.lineWidth = s * 0.07;
-    ctx.beginPath(); ctx.moveTo(x + k * s * 0.08, y + s * 0.05); ctx.quadraticCurveTo(mx + k * s * 0.08, my - s * 0.15, mx, my); ctx.quadraticCurveTo(mx - k * s * 0.02, my + s * 0.3, tx, ty); ctx.stroke();
-  }
-  // 머리
-  const hg = ctx.createLinearGradient(x - s * 0.16, 0, x + s * 0.16, 0);
-  hg.addColorStop(0, '#6f9e22'); hg.addColorStop(0.5, '#c8f56a'); hg.addColorStop(1, '#6f9e22');
-  ctx.fillStyle = hg;
-  ctx.beginPath(); ctx.roundRect(x - s * 0.15, y - s * 0.16, s * 0.3, s * 0.24, s * 0.06); ctx.fill();
-  ctx.fillStyle = '#e9ffc0';
-  ctx.beginPath(); ctx.arc(x, y - s * 0.04, s * 0.045, 0, 7); ctx.fill();
+  return {
+    sh: { x: x + k * s * 0.12, y: y + s * 0.06 },
+    kn: { x: x + k * (s * 0.24 + o * s * 0.48), y: y + s * 0.44 },
+    tp: { x: x + k * (s * 0.1 + o * s * 0.55), y: y + s * 0.95 },
+  };
 }
+
+function drawClaw(part) {
+  const s = L.clawS, x = claw.x + claw.sway, y = claw.y, o = claw.open;
+  const ry = railY();
+  const dk = 1 + claw.depth;
+  if (part === 'front') {
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(dk, dk); ctx.translate(-x, -y);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    drawSideProngs(s, o);
+    ctx.restore();
+    return;
+  }
+  // 레일 + 이동 장치
+  const rg = ctx.createLinearGradient(0, ry - s * 0.07, 0, ry + s * 0.07);
+  rg.addColorStop(0, '#e9ecf0'); rg.addColorStop(0.5, '#9aa1aa'); rg.addColorStop(1, '#5c626b');
+  ctx.fillStyle = rg; ctx.fillRect(L.d * 0.5, ry - s * 0.05, W - L.d, s * 0.1);
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(L.d * 0.5, ry + s * 0.05, W - L.d, s * 0.03);
+  const cg = ctx.createLinearGradient(claw.x - s * 0.3, 0, claw.x + s * 0.3, 0);
+  cg.addColorStop(0, '#4a5059'); cg.addColorStop(0.5, '#c3c9d1'); cg.addColorStop(1, '#4a5059');
+  ctx.fillStyle = cg;
+  ctx.beginPath(); ctx.roundRect(claw.x - s * 0.3, ry - s * 0.11, s * 0.6, s * 0.24, s * 0.05); ctx.fill();
+  ctx.fillStyle = '#a8e83c'; ctx.fillRect(claw.x - s * 0.3, ry - s * 0.02, s * 0.6, s * 0.04);
+  for (const k of [-1, 1]) { ctx.fillStyle = '#2b2f35'; ctx.beginPath(); ctx.arc(claw.x + k * s * 0.2, ry + s * 0.08, s * 0.045, 0, 7); ctx.fill(); }
+  // 케이블 (두 가닥)
+  const topY = y - s * 0.36;
+  ctx.lineCap = 'round';
+  for (const k of [-1, 1]) {
+    ctx.strokeStyle = '#2d3137'; ctx.lineWidth = s * 0.045;
+    ctx.beginPath(); ctx.moveTo(claw.x + k * s * 0.06, ry + s * 0.12); ctx.lineTo(x + k * s * 0.06, topY); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = s * 0.012;
+    ctx.beginPath(); ctx.moveTo(claw.x + k * s * 0.06 - s * 0.01, ry + s * 0.12); ctx.lineTo(x + k * s * 0.06 - s * 0.01, topY); ctx.stroke();
+  }
+  // 원근: 파고들면 작아지고(안쪽), 들어 올리면 커짐(앞쪽)
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(dk, dk); ctx.translate(-x, -y);
+  // 뒤쪽 가운데 발
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#3b4048'; ctx.lineWidth = s * 0.11;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + s * 0.86); ctx.stroke();
+  ctx.strokeStyle = '#8a9099'; ctx.lineWidth = s * 0.07;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + s * 0.86); ctx.stroke();
+  // (좌우 발은 캡슐 앞쪽 층에서 따로 그림)
+  // 모터 하우징
+  drawHousing(s, x, y);
+  ctx.restore();
+}
+
+function drawSideProngs(s, o) {
+  // 좌우 발 (굵은 금속 + 라임 관절)
+  for (const k of [-1, 1]) {
+    const g = prongGeo(k, o);
+    const hook = { x: g.tp.x - k * s * 0.1, y: g.tp.y + s * 0.03 };
+    ctx.strokeStyle = '#2f343b'; ctx.lineWidth = s * 0.15;
+    ctx.beginPath(); ctx.moveTo(g.sh.x, g.sh.y); ctx.lineTo(g.kn.x, g.kn.y); ctx.lineTo(g.tp.x, g.tp.y); ctx.lineTo(hook.x, hook.y); ctx.stroke();
+    ctx.strokeStyle = '#cfd4db'; ctx.lineWidth = s * 0.1;
+    ctx.beginPath(); ctx.moveTo(g.sh.x, g.sh.y); ctx.lineTo(g.kn.x, g.kn.y); ctx.lineTo(g.tp.x, g.tp.y); ctx.stroke();
+    ctx.strokeStyle = '#f7f9fb'; ctx.lineWidth = s * 0.025;
+    ctx.beginPath(); ctx.moveTo(g.sh.x - k * s * 0.02, g.sh.y); ctx.lineTo(g.kn.x - k * s * 0.025, g.kn.y); ctx.lineTo(g.tp.x - k * s * 0.02, g.tp.y - s * 0.03); ctx.stroke();
+    ctx.strokeStyle = '#a8e83c'; ctx.lineWidth = s * 0.1;
+    ctx.beginPath(); ctx.moveTo(g.tp.x, g.tp.y - s * 0.02); ctx.lineTo(hook.x, hook.y); ctx.stroke();
+    ctx.fillStyle = '#2f343b'; ctx.beginPath(); ctx.arc(g.kn.x, g.kn.y, s * 0.075, 0, 7); ctx.fill();
+    ctx.fillStyle = '#a8e83c'; ctx.beginPath(); ctx.arc(g.kn.x, g.kn.y, s * 0.05, 0, 7); ctx.fill();
+  }
+}
+
+function drawHousing(s, x, y) {
+  const hg = ctx.createLinearGradient(x - s * 0.22, 0, x + s * 0.22, 0);
+  hg.addColorStop(0, '#50565f'); hg.addColorStop(0.35, '#eef1f4'); hg.addColorStop(0.6, '#b4bac3'); hg.addColorStop(1, '#4a5059');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.roundRect(x - s * 0.22, y - s * 0.36, s * 0.44, s * 0.36, s * 0.07); ctx.fill();
+  ctx.fillStyle = '#a8e83c'; ctx.fillRect(x - s * 0.22, y - s * 0.17, s * 0.44, s * 0.07);
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(x - s * 0.22, y - s * 0.1, s * 0.44, s * 0.015);
+  ctx.fillStyle = '#2b2f35';
+  ctx.beginPath(); ctx.ellipse(x, y + s * 0.01, s * 0.16, s * 0.05, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#d7dce2'; ctx.beginPath(); ctx.arc(x, y + s * 0.04, s * 0.07, 0, 7); ctx.fill();
+}
+
+// 조준선: 집게 중심선만 점선으로 (성공 여부는 미리 알려주지 않음)
+// 캡슐보다 뒤에 그려서 캡슐 사이 틈으로만 보임 → 아래쪽 캡슐을 노릴 때 참고
+function drawGuide() {
+  if (!['move', 'release'].includes(claw.phase)) return;
+  const x = claw.x;
+  ctx.save();
+  ctx.setLineDash([7, 7]); ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.moveTo(x, tipY() + 4); ctx.lineTo(x, L.floor); ctx.stroke();
+  ctx.restore();
+}
+
+// 들어 올리는 캡슐의 그림자 (아래 캡슐 더미 위에)
+function drawLiftShadow() {
+  const c = claw.held;
+  if (!c) return;
+  const below = findTarget(c.x);
+  const gy = below ? below.y - L.R * 0.6 : L.floor - L.R * 0.2;
+  const hgt = Math.max(0, gy - c.y);
+  const a = Math.max(0, 0.35 - hgt / H * 0.6);
+  if (a <= 0) return;
+  ctx.fillStyle = `rgba(0,0,0,${a})`;
+  ctx.beginPath(); ctx.ellipse(c.x, gy, L.R * (0.9 + hgt / H), L.R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// ------------------------------------------------------------------
+// 판정 규칙 (무작위 없음)
+//  1) 집게는 캡슐 더미 속으로 파고들며, 중심선에서 반지름의 70% 넘게 떨어진 캡슐은 옆으로 밀어냄
+//  2) 중심선에 가까운(70% 이내) 첫 캡슐에 닿으면 멈춤 → 그 캡슐이 대상 (틈을 노리면 아래쪽 캡슐도 가능)
+//  3) 대상 캡슐 중심에서 벗어난 정도가 허용 범위 안이면 잡힘 (쉬움 60% / 보통 45% / 어려움 28%)
+// ------------------------------------------------------------------
+const STOP = 0.7;
+function zone() { return Math.min(0.6, 1 - opts.diff); }
+
+function findTarget(x) {
+  let best = null;
+  for (const c of caps) {
+    if (c.gone || c.held) continue;
+    if (Math.abs(c.x - x) >= L.R * STOP) continue;
+    if (!best || c.y < best.y) best = c;
+  }
+  return best;
+}
+function judge(x) {
+  const c = findTarget(x);
+  const z = zone();
+  if (!c) return { kind: 'none', zone: z };
+  const dx = x - c.x, off = Math.abs(dx) / L.R;
+  return { kind: off <= z ? 'ok' : 'off', cap: c, dx, off, zone: z };
+}
+const evaluateGrab = () => judge(claw.x);
 
 // ------------------------------------------------------------------
 // 게임 진행
@@ -331,48 +450,25 @@ function drawClaw() {
 function startPlay() {
   if (claw.phase !== 'ready' || revealing) return;
   claw.phase = 'move'; claw.timer = opts.playTime;
+  hideJudge();
   broadcastState();
 }
 function pressGrab() {
   if (revealing) return;
   if (claw.phase === 'ready') { startPlay(); return; }
   if (claw.phase !== 'move') return;
-  claw.phase = 'drop'; claw.vy = H * 0.4; claw.vx = 0;
-  sound('drop');
+  claw.phase = 'release'; claw.t = 0; claw.vx = 0;
+  sound('release');
   sendCtl({ type: 'fx', kind: 'drop' });
   broadcastState();
 }
 
-function capsBelow() {
-  return caps.filter(c => !c.gone && !c.held && Math.abs(c.x - claw.x) < L.R * 0.95);
-}
-
-function evaluateGrab() {
-  const R = L.R, ty = tipY();
-  const cands = caps.filter(c => !c.gone && !c.held && Math.abs(c.x - claw.x) < R * 1.05 && c.y - R <= ty + R * 0.35);
-  if (!cands.length) {
-    const near = caps.filter(c => !c.gone).reduce((m, c) => Math.min(m, Math.abs(c.x - claw.x) - R), Infinity);
-    return { kind: 'none', near };
-  }
-  cands.sort((a, b) => a.y - b.y);
-  const c = cands[0];
-  const dx = claw.x - c.x;
-  const acc = Math.max(0, 1 - Math.abs(dx) / R);
-  // 위에 다른 캡슐이 걸쳐 있으면 빼내기 어려움
-  const covered = caps.some(o => o !== c && !o.gone && !o.held && o.y < c.y - R * 0.45 && Math.abs(o.x - c.x) < R * 1.35 && Math.hypot(o.x - c.x, o.y - c.y) < R * 2.1);
-  const eff = covered ? acc * 0.6 : acc;
-  const need = opts.diff;
-  let kind;
-  if (eff >= need + 0.15) kind = 'secure';
-  else if (eff >= need) kind = 'slip';
-  else kind = 'miss';
-  return { kind, cap: c, acc, eff, need, covered, dx };
-}
-
 function stepGame(h) {
-  // 줄 흔들림
-  claw.swayV += (-90 * claw.sway - 5 * claw.swayV) * h;
+  claw.swayV += (-80 * claw.sway - 4 * claw.swayV) * h;
   claw.sway += claw.swayV * h;
+  shake = Math.max(0, shake - h * 3.5);
+  const zTarget = ['impact', 'close'].includes(claw.phase) ? 1 : 0;
+  zoom += (zTarget - zoom) * Math.min(1, h * (zTarget ? 10 : 3));
 
   switch (claw.phase) {
     case 'ready':
@@ -382,10 +478,10 @@ function stepGame(h) {
       const dir = (right ? 1 : 0) - (left ? 1 : 0);
       if (claw.phase === 'ready' && dir && !revealing) startPlay();
       if (claw.phase !== 'move') break;
-      const speed = Math.max(W * 0.32, (L.x1 - L.x0) * 0.45);
+      const speed = Math.max(W * 0.28, (L.x1 - L.x0) * 0.4);
       const pv = claw.vx;
-      claw.vx += (dir * speed - claw.vx) * Math.min(1, h * 14);
-      claw.swayV -= (claw.vx - pv) * 0.06;
+      claw.vx += (dir * speed - claw.vx) * Math.min(1, h * 12);
+      claw.swayV -= (claw.vx - pv) * 0.05;
       claw.x += claw.vx * h;
       const lo = L.x0 + L.R * 0.9, hi = L.x1 - L.R * 0.9;
       if (claw.x < lo) { claw.x = lo; claw.vx = 0; }
@@ -394,20 +490,49 @@ function stepGame(h) {
       if (claw.timer <= 0) { claw.timer = 0; pressGrab(); }
       break;
     }
+    case 'release': {
+      // 덜컥 — 잠금이 풀리는 순간
+      claw.t += h;
+      claw.y = L.restY - Math.sin(Math.min(1, claw.t / 0.25) * Math.PI) * L.clawS * 0.06;
+      claw.sway = Math.sin(claw.t * 70) * L.clawS * 0.015;
+      if (claw.t >= 0.28) { claw.phase = 'drop'; claw.vy = 0; claw.y = L.restY; claw.sway = 0; }
+      break;
+    }
     case 'drop': {
-      // 툭 떨어지기: 빠르게 가속
-      claw.vy = Math.min(H * 3.2, claw.vy + H * 9 * h);
+      // 중력처럼 점점 빨라지며 떨어짐
+      claw.vy = Math.min(H * 1.6, claw.vy + H * 2.1 * h);
       claw.y += claw.vy * h;
       const ty = tipY();
-      const hit = capsBelow().some(c => ty >= c.y - L.R * 0.55) || ty >= L.floor - 3;
+      // 중심선에서 떨어진 캡슐은 옆으로 밀려남 (집게가 사이로 파고듦)
+      for (const c of caps) {
+        if (c.gone || c.held) continue;
+        const dx = c.x - claw.x, adx = Math.abs(dx);
+        if (adx < L.R * STOP || adx > L.R * 1.25) continue;
+        if (c.y - L.R > ty || c.y + L.R < claw.y) continue;
+        c.x += Math.sign(dx || 1) * (L.R * 1.25 - adx) * 0.2;
+        c.vy = Math.min(c.vy, 0);
+      }
+      const t = findTarget(claw.x);
+      const pileTop = caps.reduce((m, c) => (!c.gone && !c.held && Math.abs(c.x - claw.x) < L.R * 1.6) ? Math.min(m, c.y - L.R) : m, L.floor);
+      claw.depth = -0.1 * Math.max(0, Math.min(1, (ty - pileTop) / (L.R * 3)));
+      const hit = (t && ty >= t.y - L.R * 0.35) || ty >= L.floor - 3;
       if (hit) {
-        claw.y -= L.R * 0.08;          // 살짝 튕김
-        claw.phase = 'close'; claw.t = 0;
         claw.result = evaluateGrab();
-        // 닿은 캡슐들 살짝 밀림
-        for (const c of capsBelow()) { c.vy += H * 0.3; c.vx += (c.x - claw.x) * 3; }
+        claw.y -= L.clawS * 0.05;
+        claw.phase = 'impact'; claw.t = 0;
+        shake = 1;
         sound('thunk');
         sendCtl({ type: 'fx', kind: 'touch' });
+        broadcastState();
+      }
+      break;
+    }
+    case 'impact': {
+      claw.t += h;
+      if (claw.t < 0.12) claw.y += L.clawS * 0.05 * h / 0.12;
+      if (claw.t >= 0.18) {
+        claw.phase = 'close'; claw.t = 0;
+        showJudge(claw.result);
         broadcastState();
       }
       break;
@@ -415,34 +540,32 @@ function stepGame(h) {
     case 'close': {
       claw.t += h;
       const r = claw.result;
-      const target = r.kind === 'secure' || r.kind === 'slip' ? 0.32 : 0;
-      claw.open = Math.max(target, 1 - claw.t / 0.2);
-      if (claw.t >= 0.32) {
-        if (r.kind === 'secure' || r.kind === 'slip') {
-          claw.held = r.cap; r.cap.held = true; r.cap.vx = r.cap.vy = 0;
-          claw.slipAt = r.kind === 'slip' ? 0.15 + (r.eff - r.need) / 0.15 * 0.7 : Infinity;
+      const grip = r.kind === 'ok' ? 0.8 : 0;
+      claw.open = Math.max(grip, 1 - claw.t / 0.35);
+      if (claw.t >= 0.55) {
+        if (r.kind === 'ok') {
+          claw.held = r.cap; r.cap.held = true; r.cap.vx = r.cap.vy = 0; r.cap.z = 0.5;
           sendCtl({ type: 'fx', kind: 'grab' });
           sound('grab');
         } else if (r.cap) {
-          // 빗나감: 집게발이 캡슐을 밀어냄
-          r.cap.vx += (r.cap.x - claw.x >= 0 ? 1 : -1) * L.R * 6; r.cap.vy -= L.R * 4; r.cap.va += 6;
+          // 빗나감: 집게발이 닿은 쪽 반대로 캡슐을 밀어냄 (방향·세기 모두 벗어난 정도로 결정)
+          const dir = r.dx >= 0 ? -1 : 1;
+          r.cap.vx += dir * L.R * (2 + r.off * 4);
         }
-        claw.phase = 'rise'; claw.riseFrom = claw.y;
+        claw.phase = 'rise'; claw.riseFrom = claw.y; claw.t = 0; claw.riseDepth = claw.depth;
         broadcastState();
       }
       break;
     }
     case 'rise': {
-      claw.y -= H * 1.15 * h;
-      const prog = (claw.riseFrom - claw.y) / Math.max(1, claw.riseFrom - L.restY);
-      if (claw.held && prog >= claw.slipAt) {
-        const c = claw.held; c.held = false; c.vy = 0; c.vx = (Math.random() - 0.5) * L.R * 3; c.va = (Math.random() - 0.5) * 8;
-        claw.held = null; claw.slipped = true; claw.open = 0.6;
-        sound('slip');
-        sendCtl({ type: 'fx', kind: 'slip' });
-      }
+      claw.t += h;
+      const sp = H * 0.7 * Math.min(1, claw.t * 2.5);
+      claw.y -= sp * h;
+      const prog = Math.min(1, (claw.riseFrom - claw.y) / Math.max(1, claw.riseFrom - L.restY));
+      claw.depth = claw.riseDepth + ((claw.held ? 0.32 : 0.12) - claw.riseDepth) * prog;
       if (claw.y <= L.restY) {
         claw.y = L.restY;
+        claw.swayV += L.clawS * 0.6;
         if (claw.held) startReveal(claw.held);
         else finishMiss();
       }
@@ -455,35 +578,81 @@ function stepGame(h) {
   }
   if (claw.held) {
     claw.held.x = claw.x + claw.sway;
-    claw.held.y = claw.y + L.clawS * 0.62 + L.R * 0.2;
-    claw.held.a += (0 - claw.held.a) * Math.min(1, h * 4);
+    claw.held.y = claw.y + L.clawS * 0.66 * (1 + claw.depth);
+    claw.held.scale = (1 + claw.depth) * (0.92 + 0.5 * 0.14);
   }
-  if (claw.phase !== 'close' && claw.phase !== 'rise' && !claw.held) claw.open += (1 - claw.open) * Math.min(1, h * 8);
+  if (!['rise', 'reveal', 'drop', 'impact', 'close'].includes(claw.phase)) claw.depth += (0 - claw.depth) * Math.min(1, h * 5);
+  if (!['close', 'rise', 'impact'].includes(claw.phase) && !claw.held) claw.open += (1 - claw.open) * Math.min(1, h * 6);
 }
 
 function toReady() {
-  claw.phase = 'ready'; claw.timer = opts.playTime; claw.slipped = false; claw.result = null;
-  demo.wait = 1.3;
+  claw.phase = 'ready'; claw.timer = opts.playTime; claw.result = null;
+  demo.wait = 1.6;
   broadcastState();
 }
 
-function resultInfo() {
-  const r = claw.result;
-  if (!r) return {};
-  if (r.kind === 'none') return { acc: 0, text: '집게 아래에 캡슐이 없었어요' };
-  const pct = Math.round(r.eff * 100), need = Math.round(r.need * 100);
-  let text = `정확도 ${Math.round(r.acc * 100)}%`;
-  if (r.covered) text += ' · 위에 다른 캡슐이 걸쳐 있었어요';
-  return { acc: pct, need, text };
+// 판정 설명 (PC 패널 + 폰으로 보냄)
+function judgeText(r) {
+  if (!r) return { title: '', detail: '' };
+  const zp = Math.round(r.zone * 100);
+  if (r.kind === 'none') return { title: '빈손', detail: '집게 아래에 캡슐이 없었어요' };
+  const op = Math.round(r.off * 100);
+  const dir = r.dx > 0 ? '오른쪽' : '왼쪽';
+  if (r.kind === 'blocked') return { title: '막혔어요', detail: `다른 캡슐이 위에서 누르고 있어서 빼낼 수 없었어요` };
+  if (r.kind === 'ok') return { title: '잡았다!', detail: `중심에서 ${op}% 벗어남 · 허용 ${zp}% 이내` };
+  return { title: '빗나감', detail: `중심에서 ${dir}으로 ${op}% 벗어남 · 허용 ${zp}%까지` };
 }
+function judgeData(r) { return r ? { kind: r.kind, off: r.off ?? null, zone: r.zone, side: r.dx > 0 ? 1 : -1 } : null; }
 
 function finishMiss() {
-  const info = resultInfo();
-  const title = claw.slipped ? '아깝다! 놓쳤어요' : (claw.result && claw.result.kind === 'none' ? '빈손이에요' : '헛잡았어요');
-  toast(claw.slipped ? '😭 아깝다!' : '😅 ' + title);
-  if (mode === 'game') sendCtl({ type: 'result', ok: false, title, detail: info.text, acc: info.acc, need: info.need });
-  claw.phase = 'wait'; claw.t = 1.4;
+  const r = claw.result;
+  const t = judgeText(r);
+  toast(r && r.kind === 'blocked' ? '🔒 막혔어요' : (r && r.kind === 'none' ? '😅 빈손' : '😅 빗나갔어요'));
+  if (mode === 'game') sendCtl({ type: 'result', ok: false, title: t.title, detail: t.detail, judge: judgeData(r) });
+  claw.phase = 'wait'; claw.t = 1.6;
   broadcastState();
+}
+
+// ---------- 판정 패널 (PC) ----------
+const judgeEl = document.getElementById('judge');
+const judgeCv = document.getElementById('judgeCv');
+let judgeTimer;
+function showJudge(r) {
+  const t = judgeText(r);
+  document.getElementById('judgeTitle').textContent = t.title;
+  document.getElementById('judgeDetail').textContent = t.detail;
+  judgeEl.className = 'hud show ' + (r.kind === 'ok' ? 'ok' : 'bad');
+  // 집게 반대편에 띄워서 잡는 장면을 가리지 않게
+  judgeEl.style.left = claw.x > W / 2 ? '26%' : '74%';
+  drawJudgeDiagram(judgeCv.getContext('2d'), judgeCv.width, judgeCv.height, judgeData(r));
+  clearTimeout(judgeTimer);
+  judgeTimer = setTimeout(hideJudge, 3400);
+  sendCtl({ type: 'judge', title: t.title, detail: t.detail, judge: judgeData(r) });
+}
+function hideJudge() { judgeEl.classList.remove('show'); }
+
+// 캡슐 단면 + 허용 구간 + 집게가 내려간 위치
+function drawJudgeDiagram(g, w, h, j) {
+  g.clearRect(0, 0, w, h);
+  const cx = w / 2, cy = h * 0.6, R = Math.min(w * 0.28, h * 0.42);
+  g.globalAlpha = j.kind === 'none' ? 0.3 : 1;
+  g.fillStyle = '#f1efe9'; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI); g.fill();
+  g.fillStyle = '#c9ccd2'; g.beginPath(); g.arc(cx, cy, R, Math.PI, Math.PI * 2); g.fill();
+  const z = j.zone * R;
+  g.fillStyle = 'rgba(182,242,74,.4)'; g.fillRect(cx - z, cy - R * 1.3, z * 2, R * 2.3);
+  g.strokeStyle = '#b6f24a'; g.lineWidth = 2; g.setLineDash([5, 4]);
+  g.beginPath(); g.moveTo(cx - z, cy - R * 1.3); g.lineTo(cx - z, cy + R); g.moveTo(cx + z, cy - R * 1.3); g.lineTo(cx + z, cy + R); g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(cx, cy - R * 1.3); g.lineTo(cx, cy + R); g.stroke();
+  g.globalAlpha = 1;
+  if (j.kind === 'none' || j.off == null) return;
+  const px = cx + j.side * Math.min(1.25, j.off) * R;
+  const col = j.kind === 'ok' ? '#b6f24a' : (j.kind === 'blocked' ? '#ffaa3c' : '#ff5f5f');
+  g.strokeStyle = col; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(px, cy - R * 1.35); g.lineTo(px, cy - R * 0.35); g.stroke();
+  g.fillStyle = col; g.beginPath(); g.moveTo(px, cy - R * 0.15); g.lineTo(px - 8, cy - R * 0.42); g.lineTo(px + 8, cy - R * 0.42); g.fill();
+  if (j.kind === 'blocked') { g.font = `${R * 0.7}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🔒', cx, cy + R * 0.5); }
 }
 
 // ------------------------------------------------------------------
@@ -497,9 +666,10 @@ let revealing = false;
 function startReveal(c) {
   revealing = true;
   claw.phase = 'reveal';
+  hideJudge();
   const p = prizes[c.pi];
   const isPrize = !!p;
-  const info = resultInfo();
+  const jd = judgeData(claw.result);
   claw.held = null;
   c.gone = true;
   const col = COLORS[c.ci];
@@ -528,29 +698,29 @@ function startReveal(c) {
   cap3d.classList.remove('open');
   revealEl.classList.add('show');
 
-  const sx = c.x - S / 2, sy = c.y - S / 2, k = (L.R * 2) / S;
+  const sx = c.x - S / 2, sy = c.y - S / 2, k = (L.R * 2 * (c.scale || 1)) / S;
   const ex = W / 2 - S / 2, ey = H * 0.42 - S / 2;
   const fly = cap3d.animate([
-    { transform: `translate3d(${sx}px, ${sy}px, 0) scale(${k}) rotateZ(${c.a}rad)` },
-    { transform: `translate3d(${(sx + ex) / 2}px, ${Math.min(sy, ey) - H * 0.08}px, 200px) scale(${(k + 1) / 2}) rotateY(360deg) rotateX(25deg)`, offset: 0.55 },
-    { transform: `translate3d(${ex}px, ${ey}px, 0) scale(1) rotateY(720deg) rotateX(0deg)` },
-  ], { duration: 1000, easing: 'cubic-bezier(.25,.8,.25,1)', fill: 'forwards' });
+    { transform: `translate3d(${sx}px, ${sy}px, 0) scale(${k}) rotateX(0deg)` },
+    { transform: `translate3d(${(sx * 0.4 + ex * 0.6)}px, ${Math.min(sy, ey) - H * 0.05}px, 120px) scale(${k * 0.3 + 0.7}) rotateX(-18deg)`, offset: 0.6 },
+    { transform: `translate3d(${ex}px, ${ey}px, 0) scale(1) rotateX(0deg)` },
+  ], { duration: 900, easing: 'cubic-bezier(.25,.8,.25,1)', fill: 'forwards' });
   requestAnimationFrame(() => revealEl.classList.add('on'));
   sound('whoosh');
 
   fly.onfinish = () => {
     // 흔들흔들
     const base = `translate3d(${ex}px, ${ey}px, 0)`;
-    const shake = cap3d.animate([
-      { transform: `${base} rotateZ(0deg)` }, { transform: `${base} rotateZ(-9deg)` }, { transform: `${base} rotateZ(8deg)` },
-      { transform: `${base} rotateZ(-6deg)` }, { transform: `${base} rotateZ(4deg)` }, { transform: `${base} rotateZ(0deg) scale(1.05)` },
-    ], { duration: 600, easing: 'ease-in-out', fill: 'forwards' });
-    shake.onfinish = () => {
+    const wobble = cap3d.animate([
+      { transform: `${base} rotateZ(0deg)` }, { transform: `${base} rotateZ(-5deg)` }, { transform: `${base} rotateZ(4deg)` },
+      { transform: `${base} rotateZ(-2deg)` }, { transform: `${base} rotateZ(0deg) scale(1.04)` },
+    ], { duration: 500, easing: 'ease-in-out', fill: 'forwards' });
+    wobble.onfinish = () => {
       cap3d.classList.add('open');
       revealEl.classList.add('burst');
       sound(isPrize ? 'win' : 'blank');
       if (isPrize) sparks();
-      if (mode === 'game') sendCtl({ type: 'result', ok: isPrize, title: isPrize ? `${p.name} 당첨!` : '꽝!', detail: isPrize ? '축하해요! 🎉' : '다음 기회에…', emoji: isPrize ? p.emoji : '💨', img: isPrize && p.img && p.img.length < 150000 ? p.img : '', acc: info.acc, need: info.need });
+      if (mode === 'game') sendCtl({ type: 'result', ok: isPrize, title: isPrize ? `${p.name} 당첨!` : '꽝!', detail: isPrize ? '축하해요! 🎉' : '다음 기회에…', emoji: isPrize ? p.emoji : '💨', img: isPrize && p.img && p.img.length < 150000 ? p.img : '', judge: jd });
       setTimeout(endReveal, isPrize ? 3600 : 2200);
     };
   };
@@ -598,10 +768,12 @@ function updateDemo(dt) {
     demo.wait -= dt;
     if (demo.wait <= 0) {
       // 위쪽에 드러난 캡슐 중 하나를 노림 (가끔 빗나감)
-      const top = caps.filter(c => !c.gone && !c.held && c.x > L.x0 + L.R * 1.2 && c.x < L.x1 - L.R * 1.2).sort((a, b) => a.y - b.y).slice(0, 6);
+      // 시연: 막히지 않은 캡슐을 노리고, 가끔은 일부러 허용 구간 밖을 노려 빗나가는 모습도 보여줌
+      const top = caps.filter(c => !c.gone && !c.held && c.x > L.x0 + L.R * 1.2 && c.x < L.x1 - L.R * 1.2 && judge(c.x).cap === c).slice(0, 8);
       const t = top[Math.floor(Math.random() * top.length)];
       if (!t) { demo.wait = 1; return; }
-      const miss = Math.random() < 0.4 ? L.R * (0.5 + Math.random() * 0.4) : L.R * Math.random() * 0.15;
+      const z = zone();
+      const miss = Math.random() < 0.35 ? L.R * (z + 0.12 + Math.random() * 0.2) : L.R * z * Math.random() * 0.5;
       demo.targetX = t.x + (Math.random() < 0.5 ? -miss : miss);
       demo.aimT = 0;
       startPlay();
@@ -659,7 +831,13 @@ function updateHud() {
 // 렌더 / 루프
 // ------------------------------------------------------------------
 function render() {
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // 충격 시 화면 흔들림 (감쇠 진동)
+  const sh = shake > 0 ? Math.sin(performance.now() / 18) * shake * L.R * 0.12 : 0;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, sh * DPR);
+  if (zoom > 0.001) {
+    const zx = claw.x, zy = tipY(), zf = 1 + zoom * 0.06;
+    ctx.translate(zx, zy); ctx.scale(zf, zf); ctx.translate(-zx, -zy);
+  }
   ctx.drawImage(bgCanvas, 0, 0, W, H);
   // 바닥 그림자
   const fg = ctx.createLinearGradient(0, H * 0.55, 0, H);
@@ -668,10 +846,18 @@ function render() {
   // 집게 그림자 (뒷벽에 흐릿하게)
   ctx.fillStyle = 'rgba(0,0,0,.12)';
   ctx.beginPath(); ctx.ellipse(claw.x + claw.sway + L.R * 0.25, claw.y + L.clawS * 0.6, L.clawS * 0.45, L.clawS * 0.6, 0, 0, 7); ctx.fill();
-  const live = caps.filter(c => !c.gone && !c.held).sort((a, b) => a.y - b.y);
-  for (const c of live) drawCap(c);
+  // 잡는 중인 캡슐은 집게발 사이 층에 그림
+  const grabbing = (claw.phase === 'impact' || claw.phase === 'close') && claw.result && claw.result.kind === 'ok' ? claw.result.cap : null;
+  const live = caps.filter(c => !c.gone && !c.held && c !== grabbing).sort((a, b) => a.z - b.z);
+  const back = live.filter(c => c.z < 0.5), front = live.filter(c => c.z >= 0.5);
+  drawGuide();
+  for (const c of back) drawCap(c);
+  drawClaw('back');
+  if (grabbing) drawCap(grabbing);
   if (claw.held) drawCap(claw.held);
-  drawClaw();
+  drawClaw('front');
+  for (const c of front) drawCap(c);
+  drawLiftShadow();
 }
 
 const H_STEP = 1 / 120;
@@ -700,7 +886,7 @@ function audio() {
 function sound(kind) {
   const a = actx; if (!a || a.state !== 'running') return;
   const seq = {
-    drop: [[660, .05], [440, .06]], thunk: [[110, .09]], grab: [[300, .06], [420, .08]], slip: [[500, .08], [360, .08], [240, .2]],
+    release: [[180, .05], [140, .08]], drop: [[660, .05], [440, .06]], thunk: [[110, .09]], grab: [[300, .06], [420, .08]], slip: [[500, .08], [360, .08], [240, .2]],
     whoosh: [[300, .05], [500, .05], [800, .08]], win: [[523, .1], [659, .1], [784, .1], [1047, .35]], blank: [[392, .15], [330, .3]], beep: [[880, .08]],
   }[kind] || [[600, .08]];
   let t = a.currentTime;

@@ -42,6 +42,23 @@
   #toast { left: 50%; top: 32%; transform: translate(-50%, -50%) scale(.8); font-size: clamp(24px, 5.5vmin, 52px); color: #fff; text-shadow: 0 3px 10px rgba(0,0,0,.6); opacity: 0; transition: all .25s; white-space: nowrap; }
   #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 
+  /* 판정 근거 패널 */
+  #judge { left: 50%; top: 13%; transform: translate(-50%, -10px); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; background: rgba(12,12,16,.85); backdrop-filter: blur(6px); border-radius: 18px; padding: 12px 14px; opacity: 0; transition: opacity .25s, transform .25s; border: 2px solid transparent; width: min(44%, 280px); }
+  #judge.show { opacity: 1; transform: translate(-50%, 0); }
+  #judge.ok { border-color: #b6f24a; }
+  #judge.bad { border-color: #ff5f5f; }
+  #stage #judgeCv { width: clamp(110px, 16vmin, 180px); height: auto; flex: none; }
+  #judge > div { min-width: 0; }
+  .jLegend { justify-content: center; flex-wrap: wrap; }
+  #judgeTitle { font-size: clamp(20px, 4vmin, 34px); }
+  #judge.ok #judgeTitle { color: #b6f24a; }
+  #judge.bad #judgeTitle { color: #ff8a8a; }
+  #judgeDetail { font-size: clamp(12px, 2vmin, 17px); color: #ddd; margin-top: 2px; }
+  .jLegend { font-size: 11px; color: #999; margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+  .jLegend i { display: inline-block; width: 12px; height: 8px; border-radius: 2px; }
+  .jLegend i.z { background: rgba(182,242,74,.6); }
+  .jLegend i.m { background: #fff; width: 3px; height: 12px; margin-left: 6px; }
+
   /* ===== 3D 캡슐 개봉 연출 ===== */
   #reveal { position: absolute; inset: 0; z-index: 8; pointer-events: none; perspective: 900px; display: none; }
   #reveal.show { display: block; }
@@ -116,6 +133,10 @@
     <div class="hud" id="timer">20</div>
     <div class="hud" id="hint"></div>
     <div class="hud" id="toast"></div>
+    <div class="hud" id="judge">
+      <canvas id="judgeCv" width="240" height="120"></canvas>
+      <div><div id="judgeTitle"></div><div id="judgeDetail"></div><div class="jLegend"><i class="z"></i>허용 구간 <i class="m"></i>집게 위치</div></div>
+    </div>
 
     <div id="reveal">
       <div class="dim"></div>

@@ -88,7 +88,7 @@
       <div id="timer">15</div>
       <div id="msg">연결하는 중…</div>
       <div id="detail"></div>
-      <div class="meter" id="meter"><div class="fill" id="meterFill"></div><div class="need" id="meterNeed"></div></div>
+      <svg id="jsvg" viewBox="0 0 160 70" width="150" height="66" style="display:none"></svg>
     </div>
     <div class="zone"><button id="grab">GRAB</button></div>
   </div>
@@ -137,10 +137,28 @@
     $('icon').innerHTML = icon || '';
     $('icon').style.display = icon ? '' : 'none';
     $('msg').textContent = msg; $('detail').textContent = detail;
-    $('meter').style.display = meter ? 'block' : 'none';
-    if (meter) { $('meterFill').style.width = meter.acc + '%'; $('meterNeed').style.left = meter.need + '%'; }
+    drawJudge(meter);
   }
-  function idle() { $('screen').classList.remove('win'); setScreen('🕹️', '◀ ▶ 를 누르면 시작!', '캡슐 바로 위에 맞추고 GRAB'); }
+  // 판정 그림: 캡슐 단면 + 허용 구간(연두) + 집게가 내려간 위치(화살표)
+  function drawJudge(j) {
+    const svg = $('jsvg');
+    if (!j || j.kind === 'none' || j.off == null) { svg.style.display = 'none'; return; }
+    svg.style.display = '';
+    const cx = 80, cy = 46, R = 26, z = j.zone * R;
+    const px = cx + j.side * Math.min(1.25, j.off) * R;
+    const col = j.kind === 'ok' ? '#b6f24a' : (j.kind === 'blocked' ? '#ffaa3c' : '#ff5f5f');
+    svg.innerHTML = `
+      <path d="M${cx - R} ${cy} A${R} ${R} 0 0 1 ${cx + R} ${cy} Z" fill="#c9ccd2"/>
+      <path d="M${cx - R} ${cy} A${R} ${R} 0 0 0 ${cx + R} ${cy} Z" fill="#f1efe9"/>
+      <rect x="${cx - z}" y="${cy - R - 12}" width="${z * 2}" height="${R * 2 + 12}" fill="rgba(182,242,74,.4)"/>
+      <line x1="${cx - z}" y1="${cy - R - 12}" x2="${cx - z}" y2="${cy + R}" stroke="#b6f24a" stroke-dasharray="3 3"/>
+      <line x1="${cx + z}" y1="${cy - R - 12}" x2="${cx + z}" y2="${cy + R}" stroke="#b6f24a" stroke-dasharray="3 3"/>
+      <line x1="${cx}" y1="${cy - R - 12}" x2="${cx}" y2="${cy + R}" stroke="rgba(255,255,255,.6)"/>
+      <line x1="${px}" y1="2" x2="${px}" y2="${cy - 12}" stroke="${col}" stroke-width="3"/>
+      <path d="M${px} ${cy - 6} L${px - 5} ${cy - 14} L${px + 5} ${cy - 14} Z" fill="${col}"/>
+      ${j.kind === 'blocked' ? `<text x="${cx}" y="${cy + 16}" font-size="16" text-anchor="middle">🔒</text>` : ''}`;
+  }
+  function idle() { $('screen').classList.remove('win'); setScreen('🕹️', '◀ ▶ 를 누르면 시작!', '캡슐 정중앙을 노리세요 · 틈 사이로 아래 캡슐도 잡혀요'); }
   const PHASE = { drop: ['⬇️', '툭!'], close: ['🤏', '꽉!'], rise: ['⬆️', '올라가는 중…'], reveal: ['✨', '두근두근…'] };
   let lastTick = -1;
   function onState(m) {
@@ -151,7 +169,7 @@
     const t = $('timer'); t.style.display = phase === 'move' ? 'block' : 'none';
     t.textContent = m.timer; t.classList.toggle('low', m.timer <= 3);
     if (Date.now() < resultUntil && (phase === 'ready' || phase === 'result')) return;
-    if (phase === 'move' && prev !== 'move') { $('screen').classList.remove('win'); setScreen('', '위치를 맞추고', 'GRAB을 누르면 집게가 떨어져요'); }
+    if (phase === 'move' && prev !== 'move') { $('screen').classList.remove('win'); setScreen('', '위치를 맞추고', '점선이 집게가 떨어질 자리예요'); }
     if (PHASE[phase] && prev !== phase) { $('screen').classList.remove('win'); setScreen(PHASE[phase][0], PHASE[phase][1]); }
     if (phase === 'ready' && prev !== 'ready') idle();
     if (phase === 'move' && m.timer <= 3 && m.timer !== lastTick) { lastTick = m.timer; buzz(25); }
@@ -160,8 +178,7 @@
     resultUntil = Date.now() + 5000;
     $('screen').classList.toggle('win', !!m.ok);
     const icon = m.ok ? (m.img ? `<img src="${m.img}">` : (m.emoji || '🎁')) : (m.emoji || '😢');
-    const meter = typeof m.acc === 'number' && m.need ? { acc: m.acc, need: m.need } : null;
-    setScreen(icon, m.title, m.detail || '', m.ok ? null : meter);
+    setScreen(icon, m.title, m.detail || '', m.ok ? null : m.judge);
     buzz(m.ok ? [120, 60, 120, 60, 400] : [200]);
     setTimeout(() => { if (Date.now() >= resultUntil && phase === 'ready') idle(); }, 5100);
   }
@@ -185,6 +202,7 @@
         if (!joined) return;
         if (m.type === 'result') onResult(m);
         if (m.type === 'fx') onFx(m);
+        if (m.type === 'judge') { resultUntil = Date.now() + 2500; $('screen').classList.remove('win'); setScreen('', m.title, m.detail, m.judge); buzz(m.judge && m.judge.kind === 'ok' ? [40, 30, 80] : 150); }
       },
     });
     setInterval(() => {
