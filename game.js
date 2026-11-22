@@ -3,6 +3,10 @@
 // 뽑힌 캡슐은 3D로 화면 앞으로 날아와 열립니다.
 (() => {
 'use strict';
+// 단체 행사용 폰 플레이 모드: event-play.html 이 window.CAPSULE_PLAYER 를 넘겨줌
+//  - 결과(당첨/꽝, 어떤 선물)는 메인 화면이 정해서 돌려줌 (onCatch)
+//  - 캡슐을 하나 잡으면 끝 (onDone)
+const PLAY = window.CAPSULE_PLAYER || null;
 
 // ------------------------------------------------------------------
 // 설정 / 저장
@@ -19,9 +23,9 @@ const PRIZE_KEY = 'capsule.prizes.v1', OPT_KEY = 'capsule.opts.v1', HIST_KEY = '
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
 
-let prizes = load(PRIZE_KEY, null);
-if (!Array.isArray(prizes) || !prizes.length) prizes = structuredClone(DEFAULT_PRIZES);
-let opts = { ...DEFAULT_OPTS, ...load(OPT_KEY, {}) };
+let prizes = PLAY ? [] : load(PRIZE_KEY, null);
+if (!PLAY && (!Array.isArray(prizes) || !prizes.length)) prizes = structuredClone(DEFAULT_PRIZES);
+let opts = PLAY ? { ...DEFAULT_OPTS, blank: 70, playTime: PLAY.playTime || 20 } : { ...DEFAULT_OPTS, ...load(OPT_KEY, {}) };
 if (opts.blank === 24 || opts.blank === 36) opts.blank = DEFAULT_OPTS.blank;   // 예전 기본값이면 새 기본값으로
 let history = load(HIST_KEY, []);
 
@@ -48,7 +52,7 @@ let L = {};          // 레이아웃 값
 let bgCanvas = null; // 콘크리트 배경 캐시
 
 function applyOrientation() {
-  const vw = innerWidth, vh = innerHeight;
+  const vw = innerWidth, vh = innerHeight - (PLAY && PLAY.reserveBottom ? PLAY.reserveBottom() : 0);
   let w = vw, h = vh;
   if (opts.orient === 'landscape') { const r = 16 / 9; if (vw / vh > r) { h = vh; w = vh * r; } else { w = vw; h = vw / r; } }
   if (opts.orient === 'portrait') { const r = 9 / 16; if (vw / vh > r) { h = vh; w = vh * r; } else { w = vw; h = vw / r; } }
@@ -814,6 +818,7 @@ const prize3d = document.getElementById('prize3d');
 let revealing = false;
 
 function startReveal(c) {
+  if (PLAY) return startRevealPlayer(c);
   revealing = true;
   claw.phase = 'reveal';
   hideJudge();
@@ -876,6 +881,65 @@ function startReveal(c) {
       setTimeout(endReveal, isPrize ? (mode === 'game' ? 5000 : 3500) : 2200);
     };
   };
+}
+
+// ---------- 폰 플레이 모드 개봉: 메인 화면의 결과가 올 때까지 흔들다가 엶 ----------
+function startRevealPlayer(c) {
+  revealing = true;
+  claw.phase = 'reveal';
+  hideJudge();
+  claw.held = null;
+  c.gone = true;
+  const col = COLORS[c.ci];
+  let res = null;
+  Promise.resolve(PLAY.onCatch()).then(r => { res = r; });
+  const S = Math.min(W, H) * 0.5;
+  cap3d.style.setProperty('--s', S + 'px');
+  cap3d.style.setProperty('--c', col.c); cap3d.style.setProperty('--c2', col.c2); cap3d.style.setProperty('--c3', col.c3);
+  prize3d.innerHTML = ''; prize3d.classList.remove('hasPhoto');
+  document.getElementById('revealTitle').textContent = '';
+  document.getElementById('revealSub').textContent = '';
+  revealEl.classList.remove('burst', 'blank', 'on');
+  cap3d.classList.remove('open');
+  revealEl.classList.add('show');
+  const sx = c.x - S / 2, sy = c.y - S / 2, k = (L.R * 2 * (c.scale || 1)) / S;
+  const ex = W / 2 - S / 2, ey = H * 0.44 - S / 2;
+  const fly = cap3d.animate([
+    { transform: `translate3d(${sx}px, ${sy}px, 0) scale(${k}) rotateX(0deg)` },
+    { transform: `translate3d(${(sx * 0.4 + ex * 0.6)}px, ${Math.min(sy, ey) - H * 0.05}px, 120px) scale(${k * 0.3 + 0.7}) rotateX(-18deg)`, offset: 0.6 },
+    { transform: `translate3d(${ex}px, ${ey}px, 0) scale(1) rotateX(0deg)` },
+  ], { duration: 900, easing: 'cubic-bezier(.25,.8,.25,1)', fill: 'forwards' });
+  requestAnimationFrame(() => revealEl.classList.add('on'));
+  sound('whoosh');
+  const base = `translate3d(${ex}px, ${ey}px, 0)`;
+  let waited = 0;
+  const wobble = () => {
+    const a = cap3d.animate([
+      { transform: `${base} rotateZ(0deg)` }, { transform: `${base} rotateZ(-6deg)` }, { transform: `${base} rotateZ(5deg)` },
+      { transform: `${base} rotateZ(-3deg)` }, { transform: `${base} rotateZ(0deg) scale(1.04)` },
+    ], { duration: 600, easing: 'ease-in-out', fill: 'forwards' });
+    a.onfinish = () => {
+      waited++;
+      if (!res) { if (waited === 2) toast('결과 확인 중…'); wobble(); return; }
+      open(res);
+    };
+  };
+  const open = (r) => {
+    const p = r.win ? r.prize : null;
+    const isPrize = !!p;
+    prize3d.innerHTML = isPrize ? (p.img ? `<img class="photo" src="${p.img}">` : (p.emoji || '🎁')) : '💨';
+    prize3d.classList.toggle('hasPhoto', !!(isPrize && p.img));
+    document.getElementById('revealTitle').textContent = isPrize ? `${p.name} 당첨!` : '꽝!';
+    document.getElementById('revealSub').textContent = isPrize ? (p.desc || '축하해요! 직원에게 화면을 보여주세요') : '다음 기회에…';
+    revealEl.classList.toggle('blank', !isPrize);
+    cap3d.classList.add('open');
+    revealEl.classList.add('burst');
+    sound(isPrize ? 'win' : 'blank');
+    if (isPrize) celebrate();
+    try { navigator.vibrate && navigator.vibrate(isPrize ? [120, 60, 120, 60, 400] : [250]); } catch {}
+    setTimeout(() => PLAY.onDone && PLAY.onDone(r), isPrize ? 5000 : 2500);
+  };
+  fly.onfinish = wobble;
 }
 
 // ---------- 당첨 축하 연출: 번쩍임 + 연속 불꽃 + 색종이 비 ----------
@@ -945,7 +1009,7 @@ function endReveal() {
 // ------------------------------------------------------------------
 // 시작 화면 / 시연
 // ------------------------------------------------------------------
-let mode = 'demo';
+let mode = PLAY ? 'game' : 'demo';
 const demoIn = { left: false, right: false };
 const demo = { wait: 1.5, targetX: null, aimT: 0 };
 const startEl = document.getElementById('start');
@@ -1012,13 +1076,14 @@ function updateHud() {
   timerEl.classList.toggle('low', claw.timer < 4);
   const showHint = mode === 'game' && claw.phase === 'ready' && !revealing;
   hintEl.style.display = showHint ? 'block' : 'none';
-  if (showHint) hintEl.textContent = ctlConnected ? '◀ ▶ 로 움직이고 버튼을 눌러요' : '⌨️ 방향키 이동 · Space 뽑기 · Esc 처음으로';
+  if (showHint) hintEl.textContent = PLAY ? '◀ ▶ 로 움직이고 GRAB!' : ctlConnected ? '◀ ▶ 로 움직이고 버튼을 눌러요' : '⌨️ 방향키 이동 · Space 뽑기 · Esc 처음으로';
 }
 
 // ------------------------------------------------------------------
 // 렌더 / 루프
 // ------------------------------------------------------------------
 function render() {
+  if (!W || !H || !bgCanvas || !bgCanvas.width) return;   // 창이 숨겨져 크기가 0이면 건너뜀
   // 충격 시 화면 흔들림 (감쇠 진동)
   const sh = shake > 0 ? Math.sin(performance.now() / 18) * shake * L.R * 0.12 : 0;
   ctx.setTransform(DPR, 0, 0, DPR, 0, sh * DPR);
@@ -1097,7 +1162,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') { keys.left = true; if (mode === 'demo') enterGame(); e.preventDefault(); }
   if (e.code === 'ArrowRight' || e.code === 'KeyD') { keys.right = true; if (mode === 'demo') enterGame(); e.preventDefault(); }
   if (e.code === 'Space') { e.preventDefault(); if (mode === 'demo') { enterGame(); return; } if (!e.repeat) pressGrab(); }
-  if (e.code === 'Escape') enterDemo();
+  if (e.code === 'Escape' && !PLAY) enterDemo();
 });
 addEventListener('keyup', (e) => {
   if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
@@ -1170,6 +1235,7 @@ function setupQR() {
 // ------------------------------------------------------------------
 // 화면 방향 / 설정 UI
 // ------------------------------------------------------------------
+if (!PLAY) {
 document.querySelectorAll('#orient button').forEach(b => b.onclick = () => { opts.orient = b.dataset.o; save(OPT_KEY, opts); applyOrientation(); });
 
 const modal = document.getElementById('settings');
@@ -1263,6 +1329,7 @@ document.getElementById('saveSettings').onclick = () => {
   resize(); claw.y = L.restY;
   refill();
 };
+}
 
 // ------------------------------------------------------------------
 // 시작
@@ -1271,8 +1338,7 @@ applyOrientation();
 claw.x = W / 2; claw.y = L.restY;
 if (document.fonts) Promise.all([document.fonts.load('300 40px "Pretendard Variable"'), document.fonts.load('700 40px "Pretendard Variable"')]).then(() => { bgCanvas = makeBackground(); }).catch(() => {});
 refill();
-setupQR();
-connect();
+if (!PLAY) { setupQR(); connect(); }
 requestAnimationFrame(loop);
-window.__cap = { claw, caps: () => caps, pressGrab, startPlay, evaluateGrab, L: () => L, enterGame, enterDemo, input, get mode() { return mode; } };
+window.__cap = { keys, claw, caps: () => caps, pressGrab, startPlay, evaluateGrab, L: () => L, enterGame, enterDemo, input, get mode() { return mode; } };
 })();

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f12">
+<title>강동 청년회 럭키박스 · 뽑기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap">
+<link rel="stylesheet" href="capsule.css?v=202611221101">
+<style>
+  /* 폰: 게임 화면은 위, 조작 버튼은 아래 */
+  html, body { touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #stage { top: 0; transform: translateX(-50%); }
+  #credit { font-size: 12px; padding: 4px 10px; bottom: 8px; right: 8px; }
+  #judge { width: min(62%, 260px); }
+  .card { bottom: 4%; }
+
+  #pad { position: fixed; left: 0; right: 0; bottom: 0; height: var(--padH); padding: 10px 18px max(12px, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(180deg, #1a1a20, #0d0d10); border-top: 1px solid #ffffff14; z-index: 10; }
+  .arrows { display: flex; gap: 12px; }
+  .arrow { width: min(22vw, 92px); aspect-ratio: 1; border: 0; border-radius: 22px; font-size: 34px; color: #e8e8ee; background: linear-gradient(180deg, #3a3a45, #26262e); box-shadow: 0 7px 0 #121216, 0 10px 18px rgba(0,0,0,.5); touch-action: none; }
+  .arrow.on { transform: translateY(5px); box-shadow: 0 2px 0 #121216; color: var(--lime); }
+  #grabBtn { width: min(30vw, 124px); aspect-ratio: 1; border-radius: 50%; border: 0; font-family: 'Bebas Neue', sans-serif; font-size: 34px; letter-spacing: 2px; color: #1f3005; background: radial-gradient(circle at 38% 30%, #e6ffb3, var(--lime) 45%, #7fb81c); box-shadow: 0 10px 0 #4c720f, 0 14px 22px rgba(0,0,0,.55); touch-action: none; }
+  #grabBtn.on { transform: translateY(8px); box-shadow: 0 2px 0 #4c720f; }
+  #pad button:disabled { opacity: .35; }
+
+  /* 입장 / 결과 화면 */
+  .screen { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 28px; text-align: center; background: radial-gradient(ellipse at 50% 0%, #2b2b36, #0d0d10 70%); }
+  .screen.hide { display: none; }
+  .brand { font-size: 15px; color: #cfd2d8; letter-spacing: .3em; font-weight: 300; }
+  .brand b { display: block; font-size: 34px; letter-spacing: -0.02em; font-weight: 800; color: #fff; margin-top: 6px; }
+  .brand i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 10px var(--lime); vertical-align: middle; margin: 0 6px; }
+  .screen input { font: inherit; font-size: 20px; width: min(320px, 100%); padding: 14px 16px; border-radius: 16px; border: 2px solid #ffffff22; background: #ffffff10; color: #fff; text-align: center; outline: none; user-select: text; -webkit-user-select: text; }
+  .screen input:focus { border-color: var(--lime); }
+  .bigBtn { font: inherit; font-size: 20px; font-weight: 800; border: 0; border-radius: 16px; padding: 14px 34px; background: var(--lime); color: #1a2a05; min-width: 200px; }
+  .bigBtn:disabled { opacity: .5; }
+  .note { font-size: 14px; color: #a3a3ae; line-height: 1.5; }
+  .err { color: #ff8a8a; font-size: 15px; min-height: 1.2em; }
+  .made { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); font-size: 13px; color: #9a9aa6; }
+  .made b { color: var(--lime); font-weight: 600; }
+
+  #resultScreen .res { background: var(--peach); color: #3a2418; border-radius: 26px; padding: 22px; width: min(360px, 100%); box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+  #resultScreen.lose .res { background: #2a2a33; color: #e8e8ee; }
+  #resultScreen .resIcon { font-size: 90px; line-height: 1.1; }
+  #resultScreen .resIcon img { max-width: 100%; max-height: 38vh; border-radius: 16px; background: #fff; display: block; margin: 0 auto; object-fit: contain; }
+  #resultScreen h2 { margin: 12px 0 4px; font-size: 32px; font-weight: 900; letter-spacing: -0.03em; }
+  #resultScreen .nick { font-size: 16px; opacity: .75; }
+  #resultScreen .desc { font-size: 15px; margin-top: 8px; opacity: .85; }
+  #resultScreen .time { font-size: 13px; margin-top: 10px; opacity: .6; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="credit">made by <b>기획문화부</b></div>
+    <div class="hud" id="timer">20</div>
+    <div class="hud" id="hint"></div>
+    <div class="hud" id="toast"></div>
+    <div class="hud" id="judge">
+      <canvas id="judgeCv" width="240" height="120"></canvas>
+      <div><div id="judgeTitle"></div><div id="judgeDetail"></div><div class="jLegend"><i class="z"></i>허용 구간 <i class="m"></i>집게 위치</div></div>
+    </div>
+    <div id="reveal">
+      <div class="dim"></div>
+      <div class="rays"></div>
+      <div class="glow"></div>
+      <div class="flash"></div>
+      <div class="banner">축하합니다!</div>
+      <div class="cap3d" id="cap3d">
+        <div class="half bot"></div>
+        <div class="prize3d" id="prize3d"></div>
+        <div class="half top"></div>
+        <div class="seam"></div>
+      </div>
+      <div class="card"><h3 id="revealTitle"></h3><p id="revealSub"></p></div>
+    </div>
+  </div>
+
+  <div id="pad">
+    <div class="arrows">
+      <button class="arrow" id="left" aria-label="왼쪽">◀</button>
+      <button class="arrow" id="right" aria-label="오른쪽">▶</button>
+    </div>
+    <button id="grabBtn">GRAB</button>
+  </div>
+
+  <!-- 입장 -->
+  <div class="screen" id="joinScreen">
+    <div class="brand">강동 청년회<b><i></i>럭키박스</b></div>
+    <div class="note">닉네임을 입력하고 입장하세요<br>뽑기는 <b style="color:#fff">한 번</b>만 할 수 있어요</div>
+    <input id="nick" maxlength="12" placeholder="닉네임" autocomplete="off" enterkeyhint="go">
+    <button class="bigBtn" id="joinBtn">입장하기</button>
+    <div class="err" id="joinErr"></div>
+    <div class="made">made by <b>기획문화부</b></div>
+  </div>
+
+  <!-- 결과 (뽑은 뒤 / 다시 들어왔을 때) -->
+  <div class="screen hide" id="resultScreen">
+    <div class="brand">강동 청년회<b><i></i>럭키박스</b></div>
+    <div class="res">
+      <div class="resIcon" id="resIcon"></div>
+      <h2 id="resTitle"></h2>
+      <div class="nick" id="resNick"></div>
+      <div class="desc" id="resDesc"></div>
+      <div class="time" id="resTime"></div>
+    </div>
+    <div class="note" id="resNote">결과가 메인 화면에 올라갔어요</div>
+    <div class="made">made by <b>기획문화부</b></div>
+  </div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="net.js?v=202611221101"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
+  const KEY = 'lb.play.' + room;
+  let devId = localStorage.getItem('lb.devid');
+  if (!devId) { devId = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); localStorage.setItem('lb.devid', devId); }
+  const saved = JSON.parse(localStorage.getItem(KEY) || 'null') || {};
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // 아래 버튼 영역 높이
+  const padH = () => Math.round(Math.min(220, Math.max(150, innerHeight * 0.24)));
+  document.documentElement.style.setProperty('--padH', padH() + 'px');
+  addEventListener('resize', () => document.documentElement.style.setProperty('--padH', padH() + 'px'));
+
+  if (!room) { $('joinErr').textContent = 'QR 주소가 올바르지 않아요. 메인 화면의 QR을 다시 찍어주세요.'; $('joinBtn').disabled = true; }
+
+  // ---------- 결과 화면 ----------
+  function showResult(r, fromNow) {
+    const s = $('resultScreen');
+    s.classList.remove('hide');
+    s.classList.toggle('lose', !r.win);
+    const p = r.prize;
+    $('resIcon').innerHTML = r.win ? (p.img ? `<img src="${p.img}">` : esc(p.emoji || '🎁')) : '😢';
+    $('resTitle').textContent = r.win ? `${p.name} 당첨!` : '아쉽지만 꽝!';
+    $('resNick').textContent = `${r.nick || saved.nick || ''} 님`;
+    $('resDesc').textContent = r.win ? (p.desc || '이 화면을 직원에게 보여주세요') : '참여해 주셔서 감사해요';
+    const t = new Date(r.at || Date.now());
+    $('resTime').textContent = `${t.getMonth() + 1}/${t.getDate()} ${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}`;
+    $('resNote').textContent = r.win ? '🎉 결과가 메인 화면에 올라갔어요 · 이 화면을 직원에게 보여주세요' : '결과가 메인 화면에 올라갔어요';
+    $('joinScreen').classList.add('hide');
+  }
+
+  if (saved.result) showResult(saved.result);
+
+  // ---------- 네트워크 ----------
+  let net, welcomed = false, drawResolve = null, lastHost = 0;
+  function send(m) { if (net) net.send({ ...m, id: devId }); }
+  net = ClawNet.open(room || 'NONE', 'ctl', {
+    onOpen: () => { if (saved.nick && !saved.result) send({ type: 'hello', nick: saved.nick }); },
+    onMessage: (m) => {
+      if (m.type === 'board') lastHost = Date.now();
+      if (m.id !== devId) return;
+      lastHost = Date.now();
+      if (m.type === 'welcome') onWelcome(m);
+      if (m.type === 'result' && drawResolve) { const r = { win: m.win, prize: m.prize, nick: m.nick, at: m.at }; drawResolve(r); drawResolve = null; }
+    },
+  });
+
+  let helloTimer;
+  function join() {
+    const nick = $('nick').value.trim();
+    if (!nick) { $('joinErr').textContent = '닉네임을 입력해 주세요'; return; }
+    saved.nick = nick; localStorage.setItem(KEY, JSON.stringify(saved));
+    $('joinBtn').disabled = true; $('joinBtn').textContent = '연결 중…'; $('joinErr').textContent = '';
+    const tryHello = () => { if (welcomed) return; send({ type: 'hello', nick }); };
+    tryHello();
+    clearInterval(helloTimer);
+    helloTimer = setInterval(tryHello, 2000);
+    setTimeout(() => { if (!welcomed) { $('joinErr').textContent = '메인 화면을 찾는 중이에요. 메인 화면이 켜져 있는지 확인해 주세요.'; } }, 7000);
+  }
+  $('joinBtn').onclick = join;
+  $('nick').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+  if (saved.nick) $('nick').value = saved.nick;
+
+  function onWelcome(m) {
+    if (welcomed) return;
+    welcomed = true; clearInterval(helloTimer);
+    $('joinBtn').disabled = false; $('joinBtn').textContent = '입장하기';
+    if (m.nick) { saved.nick = m.nick; localStorage.setItem(KEY, JSON.stringify(saved)); }
+    if (m.status === 'done' && m.result) { saved.result = m.result; localStorage.setItem(KEY, JSON.stringify(saved)); showResult(m.result); return; }
+    if (m.status === 'closed') { welcomed = false; $('joinErr').textContent = '지금은 참여할 수 없어요 (행사 시작 전이거나 마감됐어요)'; return; }
+    if (m.status === 'full') { welcomed = false; $('joinErr').textContent = '선물이 모두 소진됐어요. 참여해 주셔서 감사해요!'; return; }
+    $('joinScreen').classList.add('hide');
+    try { audioUnlock(); } catch {}
+  }
+  function audioUnlock() { document.dispatchEvent(new PointerEvent('pointerdown')); }
+
+  // ---------- 게임 엔진 연결 ----------
+  let caught = false;
+  window.CAPSULE_PLAYER = {
+    playTime: 20,
+    reserveBottom: padH,
+    onCatch() {
+      caught = true; setPad(false);
+      return new Promise((resolve) => {
+        drawResolve = (r) => { saved.result = r; localStorage.setItem(KEY, JSON.stringify(saved)); resolve(r); };
+        const ask = () => { if (!drawResolve) return; send({ type: 'draw', nick: saved.nick }); setTimeout(ask, 2500); };
+        ask();
+      });
+    },
+    onDone(r) { showResult(r); },
+  };
+
+  // ---------- 버튼 ----------
+  const held = { left: false, right: false };
+  function setPad(on) { ['left', 'right', 'grabBtn'].forEach(id => $(id).disabled = !on); }
+  function hold(el, key) {
+    const down = (e) => { e.preventDefault(); if (el.disabled || caught) return; held[key] = true; el.classList.add('on'); try { el.setPointerCapture(e.pointerId); } catch {} if (window.__cap) window.__cap.input[key] = true; try { navigator.vibrate && navigator.vibrate(10); } catch {} };
+    const up = (e) => { e.preventDefault(); if (!held[key]) return; held[key] = false; el.classList.remove('on'); if (window.__cap) window.__cap.input[key] = false; };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);
+  }
+  hold($('left'), 'left'); hold($('right'), 'right');
+  const gb = $('grabBtn');
+  gb.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); if (gb.disabled || caught || !window.__cap) return;
+    gb.classList.add('on');
+    for (const k of ['left', 'right']) { held[k] = false; $(k).classList.remove('on'); window.__cap.input[k] = false; }
+    window.__cap.pressGrab();
+    try { navigator.vibrate && navigator.vibrate(40); } catch {}
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => gb.addEventListener(t, () => gb.classList.remove('on')));
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // 살아있다는 신호
+  setInterval(() => { if (welcomed && !saved.result) send({ type: 'ping' }); }, 4000);
+})();
+</script>
+<script src="game.js?v=202611221101"></script>
+</body>
+</html>
