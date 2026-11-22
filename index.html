@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>럭키 캡슐</title>
+<title>강동 청년회 럭키박스</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Bebas+Neue&display=swap">
 <style>
   :root {
@@ -16,7 +16,7 @@
   #stage canvas { display: block; width: 100%; height: 100%; }
 
   /* 상단 버튼 (시작 화면에서만) */
-  .topbar { position: absolute; top: 14px; left: 14px; right: 14px; display: flex; justify-content: space-between; gap: 8px; z-index: 6; transition: opacity .3s; }
+  .topbar { position: absolute; top: calc(var(--lip, 60px) + 10px); left: 14px; right: 14px; display: flex; justify-content: space-between; gap: 8px; z-index: 6; transition: opacity .3s; }
   .seg { display: flex; background: rgba(0,0,0,.45); border-radius: 99px; padding: 4px; backdrop-filter: blur(6px); }
   .seg button { border: 0; background: transparent; color: #ddd; font: inherit; font-size: 14px; padding: 7px 12px; border-radius: 99px; cursor: pointer; }
   .seg button.on { background: #fff; color: #222; }
@@ -33,6 +33,10 @@
   #status { font-size: 13px; color: #fff; background: rgba(0,0,0,.5); padding: 5px 12px; border-radius: 99px; display: flex; align-items: center; gap: 6px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #888; }
   .dot.on { background: var(--lime); box-shadow: 0 0 8px var(--lime); }
+
+  /* 제작 표기 */
+  #credit { position: absolute; right: 14px; bottom: 12px; z-index: 7; font-size: clamp(15px, 2.7vmin, 26px); color: #fff; background: rgba(0,0,0,.5); padding: 6px 14px; border-radius: 99px; letter-spacing: .5px; backdrop-filter: blur(4px); pointer-events: none; }
+  #credit b { color: var(--lime); font-weight: normal; }
 
   /* HUD */
   .hud { position: absolute; pointer-events: none; z-index: 4; }
@@ -133,10 +137,11 @@
 
     <div id="start">
       <div id="qrBox"></div>
-      <div id="startText">QR을 찍고 <b>럭키 캡슐</b>에 참여하세요!<br>폰이 게임패드가 돼요</div>
+      <div id="startText">QR을 찍고 <b>강동 청년회 럭키박스</b>에 참여하세요!<br>폰이 게임패드가 돼요</div>
       <div id="status"><span class="dot" id="dot"></span><span id="statusText">연결 준비 중…</span></div>
     </div>
 
+    <div id="credit">made by <b>기획문화부</b></div>
     <div class="hud" id="timer">20</div>
     <div class="hud" id="hint"></div>
     <div class="hud" id="toast"></div>
@@ -163,7 +168,8 @@
       <h2>⚙️ 상품 설정</h2>
       <div class="hint2">캡슐 안에 들어갈 상품을 정하세요. 수량만큼 캡슐이 생겨요. 캡슐 밖에서는 안이 보이지 않고, 뽑아서 열면 상품 사진과 설명이 크게 나와요.</div>
       <div class="opts">
-        <div><label>꽝 캡슐 수</label><input type="number" id="optBlank" min="0" max="60"></div>
+        <div><label>꽝 캡슐 수</label><input type="number" id="optBlank" min="0" max="100">
+          <label style="margin-top:6px;display:flex;gap:6px;align-items:center;color:#ddd"><input type="checkbox" id="optFill" style="width:auto"> 빈자리는 꽝 캡슐로 채우기</label></div>
         <div><label>난이도 (집게 정확도)</label>
           <select id="optDiff"><option value="0.35">쉬움</option><option value="0.55">보통</option><option value="0.72">어려움</option></select></div>
         <div><label>한 판 시간</label>
@@ -183,7 +189,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
-  <script src="net.js?v=202611212328"></script>
-  <script src="game.js?v=202611212328"></script>
+  <script src="net.js?v=202611220949"></script>
+  <script src="game.js?v=202611220949"></script>
 </body>
 </html>
