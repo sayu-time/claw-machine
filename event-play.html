@@ -7,7 +7,7 @@
 <title>강동 청년회 럭키박스 · 뽑기</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap">
-<link rel="stylesheet" href="capsule.css?v=202611221101">
+<link rel="stylesheet" href="capsule.css?v=202611221559">
 <style>
   /* 폰: 게임 화면은 위, 조작 버튼은 아래 */
   html, body { touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -109,7 +109,7 @@
   </div>
 
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
-<script src="net.js?v=202611221101"></script>
+<script src="net.js?v=202611221559"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -231,6 +231,6 @@
   setInterval(() => { if (welcomed && !saved.result) send({ type: 'ping' }); }, 4000);
 })();
 </script>
-<script src="game.js?v=202611221101"></script>
+<script src="game.js?v=202611221559"></script>
 </body>
 </html>

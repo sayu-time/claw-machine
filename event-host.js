@@ -145,12 +145,12 @@ function render(newId) {
   $('sPlayed').textContent = st.played;
   $('sWin').textContent = st.wins;
   $('sLeft').textContent = st.stockLeft;
-  $('giftSum').textContent = `남은 ${st.stockLeft} / 전체 ${st.totalStock}`;
+  if ($('giftSum')) $('giftSum').textContent = `남은 ${st.stockLeft} / 전체 ${st.totalStock}`;
   const badge = $('stateBadge');
   badge.className = 'state ' + (S.open ? 'open' : 'closed');
   badge.textContent = S.open ? '참여 가능' : '참여 마감';
 
-  $('prizes').innerHTML = S.prizes.map(p => `
+  if ($('prizes')) $('prizes').innerHTML = S.prizes.map(p => `
     <div class="gift ${p.left <= 0 ? 'out' : ''}" data-id="${p.id}">
       <div class="ph">${p.img ? `<img src="${p.img}">` : esc(p.emoji || '🎁')}</div>
       <div class="nm">${esc(p.name)}</div>

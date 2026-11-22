@@ -11,8 +11,8 @@
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: 'Pretendard Variable', Pretendard, 'Noto Sans KR', system-ui, sans-serif; letter-spacing: -0.01em; overflow: hidden; }
   body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(ellipse at 15% 0%, rgba(182,242,74,.12), transparent 50%), radial-gradient(ellipse at 90% 100%, rgba(255,108,194,.1), transparent 50%); pointer-events: none; }
 
-  .wrap { position: relative; height: 100%; display: grid; grid-template-columns: minmax(260px, 23vw) 1fr minmax(280px, 25vw); grid-template-rows: auto 1fr; gap: 1.6vmin; padding: 2vmin; }
-  header { grid-column: 1 / 4; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .wrap { position: relative; height: 100%; display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); grid-template-rows: auto 1fr; gap: 1.8vmin; padding: 2vmin; }
+  header { grid-column: 1 / 3; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .brand { display: flex; align-items: baseline; gap: 14px; }
   .brand .a { font-size: clamp(18px, 2.4vmin, 30px); font-weight: 300; letter-spacing: .25em; color: #d6d8de; }
   .brand .dot { width: 1.1vmin; height: 1.1vmin; min-width: 8px; min-height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px var(--lime); align-self: center; }
@@ -27,16 +27,16 @@
   .state.closed { background: rgba(255,95,95,.15); color: #ff8a8a; }
 
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 2.2vmin; padding: 2vmin; min-height: 0; display: flex; flex-direction: column; }
-  .card h2 { margin: 0 0 1.4vmin; font-size: clamp(16px, 2.3vmin, 28px); font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .card h2 { margin: 0 0 1.4vmin; font-size: clamp(18px, 3vmin, 38px); font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .card h2 small { font-size: .7em; color: var(--muted); font-weight: 500; }
 
   /* 왼쪽: QR + 인원 */
-  .join { align-items: center; text-align: center; gap: 1.4vmin; }
-  #qrBox { background: #fff; padding: 1.4vmin; border-radius: 2vmin; line-height: 0; }
-  #qrBox img, #qrBox canvas { width: min(19vw, 36vh) !important; height: min(19vw, 36vh) !important; }
-  .joinText { font-size: clamp(15px, 2.2vmin, 26px); font-weight: 700; line-height: 1.4; }
+  .join { align-items: center; justify-content: space-evenly; text-align: center; gap: 1.4vmin; overflow: hidden; }
+  #qrBox { background: #fff; padding: 2vmin; border-radius: 2.6vmin; line-height: 0; box-shadow: 0 0 0 .6vmin rgba(182,242,74,.35), 0 2vmin 6vmin rgba(0,0,0,.45); }
+  #qrBox img, #qrBox canvas { width: min(36vw, calc(100vh - 25vmin - 215px)) !important; height: min(36vw, calc(100vh - 25vmin - 215px)) !important; }
+  .joinText { font-size: clamp(18px, 3.2vmin, 40px); font-weight: 800; line-height: 1.35; }
   .joinText b { color: var(--lime); }
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1vmin; width: 100%; margin-top: auto; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1vmin; width: 100%; }
   .stat { background: rgba(255,255,255,.05); border-radius: 1.6vmin; padding: 1.4vmin 1vmin; }
   .stat .n { font-size: clamp(26px, 5vmin, 64px); font-weight: 800; line-height: 1; }
   .stat .l { font-size: clamp(11px, 1.5vmin, 17px); color: var(--muted); margin-top: .6vmin; }
@@ -58,16 +58,17 @@
   .gift.out::after { content: '소진'; position: absolute; top: 1.6vmin; right: 1.6vmin; background: #ff5f5f; color: #fff; font-weight: 800; font-size: clamp(13px, 1.8vmin, 20px); padding: .5vmin 1.2vmin; border-radius: 99px; transform: rotate(8deg); }
 
   /* 오른쪽: 명단 */
-  .lists { display: grid; grid-template-rows: 1.4fr 1fr; gap: 1.6vmin; min-height: 0; }
-  #winners { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: .8vmin; }
-  #winners li { display: flex; align-items: center; gap: 1vmin; background: linear-gradient(90deg, rgba(255,212,71,.14), rgba(255,212,71,.03)); border-radius: 1.4vmin; padding: 1vmin 1.2vmin; font-size: clamp(14px, 2vmin, 24px); }
+  .lists { display: grid; grid-template-rows: 2.2fr 1fr; gap: 1.8vmin; min-height: 0; }
+  #winners { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: 1.2vmin; }
+  #winners li { display: flex; align-items: center; gap: 1.6vmin; background: linear-gradient(90deg, rgba(255,212,71,.16), rgba(255,212,71,.03)); border: 1px solid rgba(255,212,71,.18); border-radius: 2vmin; padding: 1.4vmin 2vmin; font-size: clamp(22px, 4.2vmin, 56px); }
+  #winners li:first-child { font-size: clamp(26px, 5.4vmin, 72px); padding: 2vmin 2.4vmin; background: linear-gradient(90deg, rgba(255,212,71,.32), rgba(255,138,61,.1)); border-color: rgba(255,212,71,.55); box-shadow: 0 0 4vmin rgba(255,212,71,.18); }
   #winners li.new { animation: slideIn .6s cubic-bezier(.2,1.4,.4,1); }
-  #winners .th { width: 4.4vmin; height: 4.4vmin; min-width: 30px; min-height: 30px; border-radius: 1vmin; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 2.6vmin; overflow: hidden; flex: none; }
+  #winners .th { width: 1.9em; height: 1.9em; border-radius: .35em; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 1em; overflow: hidden; flex: none; }
   #winners .th img { width: 100%; height: 100%; object-fit: cover; }
-  #winners .who { font-weight: 800; }
-  #winners .what { color: var(--gold); font-weight: 600; margin-left: auto; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #winners .who { font-weight: 900; letter-spacing: -0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #winners .what { color: var(--gold); font-weight: 800; margin-left: auto; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .8em; }
   #losers { display: flex; flex-wrap: wrap; gap: .7vmin; overflow: auto; align-content: start; }
-  #losers span { background: rgba(255,255,255,.07); color: #c9c9d2; border-radius: 99px; padding: .6vmin 1.3vmin; font-size: clamp(12px, 1.7vmin, 20px); }
+  #losers span { background: rgba(255,255,255,.07); color: #c9c9d2; border-radius: 99px; padding: .7vmin 1.6vmin; font-size: clamp(14px, 2.2vmin, 28px); }
   #losers span.new { animation: slideIn .5s; }
   .empty { color: var(--muted); font-size: clamp(13px, 1.7vmin, 18px); }
   @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } }
@@ -118,7 +119,7 @@
     body { overflow: auto; }
     .wrap { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
     header { grid-column: 1; flex-wrap: wrap; }
-    #qrBox img, #qrBox canvas { width: 50vw !important; height: 50vw !important; }
+    #qrBox img, #qrBox canvas { width: 72vw !important; height: 72vw !important; }
     .lists { grid-template-rows: auto auto; }
   }
 </style>
@@ -135,7 +136,6 @@
     </header>
 
     <section class="card join">
-      <h2 style="width:100%;justify-content:center">QR로 참여하기</h2>
       <div id="qrBox"></div>
       <div class="joinText">폰 카메라로 QR을 찍고<br><b>닉네임</b>을 입력하면 끝!<br><span style="font-weight:500;color:var(--muted);font-size:.8em">1인 1회 · 내 폰에서 직접 뽑아요</span></div>
       <div class="stats">
@@ -146,10 +146,6 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>🎁 선물 현황 <small id="giftSum"></small></h2>
-      <div id="prizes"></div>
-    </section>
 
     <section class="lists">
       <div class="card"><h2>🏆 당첨 명단 <small id="winCount"></small></h2><ul id="winners"></ul></div>
@@ -203,7 +199,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
-<script src="net.js?v=202611221101"></script>
-<script src="event-host.js?v=202611221101"></script>
+<script src="net.js?v=202611221559"></script>
+<script src="event-host.js?v=202611221559"></script>
 </body>
 </html>
