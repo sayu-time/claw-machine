@@ -76,7 +76,7 @@ function resize() {
   L.clawS = Math.max(L.R * 2.2, m * 0.15); // 집게 크기 (캡슐이 작아져도 크레인은 실물처럼 크게)
   L.restY = L.lip + L.clawS * 0.55; // 집게 대기 높이 (높이 매달려 있다가 길게 떨어짐)
   stage.style.setProperty('--lip', Math.round(L.lip) + 'px');
-  stage.style.setProperty('--qr', Math.round(Math.max(110, Math.min(220, m * 0.22))) + 'px');
+  stage.style.setProperty('--qr', Math.round(Math.max(160, Math.min(360, m * 0.34))) + 'px');
   bgCanvas = makeBackground();
   spriteCache.clear();
   // 기존 캡슐 위치를 새 크기에 맞게 옮김
@@ -101,6 +101,34 @@ function capRadius() {
   const wInt = W * 0.95;
   const r = Math.sqrt(0.264 * wInt * H / total);
   return Math.max(Math.min(W / 28, H / 26), Math.min(r, W / 16, H / 15));
+}
+
+const LOGO_FONT = '"Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif';
+function drawLogo(g, lip) {
+  const fs = Math.min(lip * 0.42, W * 0.055);
+  const a = '강동 청년회', b = '럭키박스';
+  g.save();
+  g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.font = `300 ${fs * 0.86}px ${LOGO_FONT}`;
+  if ('letterSpacing' in g) g.letterSpacing = `${fs * 0.18}px`;
+  const wa = g.measureText(a).width;
+  g.font = `700 ${fs}px ${LOGO_FONT}`;
+  if ('letterSpacing' in g) g.letterSpacing = `${fs * 0.02}px`;
+  const wb = g.measureText(b).width;
+  const gap = fs * 0.75, total = wa + gap + wb;
+  let x = W / 2 - total / 2; const y = lip * 0.52;
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = fs * 0.4; g.shadowOffsetY = fs * 0.06;
+  g.font = `300 ${fs * 0.86}px ${LOGO_FONT}`;
+  if ('letterSpacing' in g) g.letterSpacing = `${fs * 0.18}px`;
+  g.fillStyle = 'rgba(255,255,255,.88)'; g.fillText(a, x, y);
+  // 가운데 라임 점
+  g.shadowBlur = fs * 0.5; g.shadowColor = 'rgba(182,242,74,.8)';
+  g.fillStyle = '#b6f24a'; g.beginPath(); g.arc(x + wa + gap / 2, y, fs * 0.1, 0, Math.PI * 2); g.fill();
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = fs * 0.4;
+  g.font = `700 ${fs}px ${LOGO_FONT}`;
+  if ('letterSpacing' in g) g.letterSpacing = `${fs * 0.02}px`;
+  g.fillStyle = '#ffffff'; g.fillText(b, x + wa + gap, y);
+  g.restore();
 }
 
 function makeBackground() {
@@ -142,17 +170,8 @@ function makeBackground() {
   g.beginPath(); g.moveTo(0, 0); g.lineTo(W, 0); g.lineTo(W - d, lip); g.lineTo(d, lip); g.closePath(); g.fill();
   g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1.5;
   g.beginPath(); g.moveTo(d, lip); g.lineTo(W - d, lip); g.moveTo(d, lip); g.lineTo(0, 0); g.moveTo(W - d, lip); g.lineTo(W, 0); g.stroke();
-  // 로고: 위쪽 벽에 새긴 글씨 (잘 보이게 밝은 판 위에 진하게)
-  const fs = Math.min(lip * 0.5, W * 0.062);
-  g.font = `${fs}px Jua, "Bebas Neue", sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  const tw = g.measureText('강동 청년회 럭키박스').width;
-  const plate = g.createLinearGradient(0, lip * 0.18, 0, lip * 0.86);
-  plate.addColorStop(0, 'rgba(255,255,255,.55)'); plate.addColorStop(1, 'rgba(255,255,255,.2)');
-  g.fillStyle = plate;
-  g.beginPath(); g.roundRect(W / 2 - tw / 2 - fs * 0.6, lip * 0.16, tw + fs * 1.2, lip * 0.7, lip * 0.18); g.fill();
-  g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText('강동 청년회 럭키박스', W / 2 + 1, lip * 0.52 + 1.5);
-  g.fillStyle = '#2b2e33'; g.fillText('강동 청년회 럭키박스', W / 2, lip * 0.52);
+  // 로고: 흰 글씨 — "강동 청년회"는 얇고 넓게, "럭키박스"는 굵게 + 라임 포인트
+  drawLogo(g, lip);
   // 비네팅
   const vg = g.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.3, W / 2, H * 0.5, Math.max(W, H) * 0.8);
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.35)');
@@ -661,6 +680,7 @@ function stepGame(h) {
       if (claw.t >= 0.18) {
         claw.phase = 'close'; claw.t = 0;
         showJudge(claw.result);
+        if (claw.result.kind === 'ok') toast('잡았다!', 'ok');
         broadcastState();
       }
       break;
@@ -737,7 +757,7 @@ function judgeData(r) { return r ? { kind: r.kind, off: r.off ?? null, zone: r.z
 function finishMiss() {
   const r = claw.result;
   const t = judgeText(r);
-  toast(r && r.kind === 'blocked' ? '🔒 막혔어요' : (r && r.kind === 'none' ? '😅 빈손' : '😅 빗나갔어요'));
+  toast(r && r.kind === 'none' ? '빈손' : '빗나감', 'bad');
   if (mode === 'game') sendCtl({ type: 'result', ok: false, title: t.title, detail: t.detail, judge: judgeData(r) });
   claw.phase = 'wait'; claw.t = 1.6;
   broadcastState();
@@ -947,7 +967,7 @@ function enterDemo() {
 // ------------------------------------------------------------------
 const timerEl = document.getElementById('timer'), hintEl = document.getElementById('hint'), toastEl = document.getElementById('toast');
 let toastT;
-function toast(t) { toastEl.textContent = t; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 1300); }
+function toast(t, kind) { toastEl.textContent = t; toastEl.className = 'hud show ' + (kind || ''); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 1500); }
 function updateHud() {
   const moving = claw.phase === 'move' && mode === 'game';
   timerEl.style.display = moving ? 'block' : 'none';
@@ -1105,7 +1125,7 @@ function setupQR() {
   const base = location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
   const link = `${base}controller.html?room=${room}`;
   box.innerHTML = '';
-  if (window.QRCode) new QRCode(box, { text: link, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+  if (window.QRCode) new QRCode(box, { text: link, width: 360, height: 360, correctLevel: QRCode.CorrectLevel.M });
   else box.textContent = link;
   box.title = link;
 }
@@ -1212,7 +1232,7 @@ document.getElementById('saveSettings').onclick = () => {
 // ------------------------------------------------------------------
 applyOrientation();
 claw.x = W / 2; claw.y = L.restY;
-if (document.fonts) document.fonts.load('40px Jua').then(() => { bgCanvas = makeBackground(); }).catch(() => {});
+if (document.fonts) Promise.all([document.fonts.load('300 40px "Pretendard Variable"'), document.fonts.load('700 40px "Pretendard Variable"')]).then(() => { bgCanvas = makeBackground(); }).catch(() => {});
 refill();
 setupQR();
 connect();
