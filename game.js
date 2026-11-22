@@ -837,7 +837,7 @@ function startReveal(c) {
     respawn(c.pi);   // 시연 중에는 같은 캡슐을 다시 넣음
   }
 
-  const S = Math.min(W, H) * 0.36;
+  const S = Math.min(W, H) * (isPrize ? 0.5 : 0.4);   // 당첨이면 더 크게
   cap3d.style.setProperty('--s', S + 'px');
   cap3d.style.setProperty('--c', col.c); cap3d.style.setProperty('--c2', col.c2); cap3d.style.setProperty('--c3', col.c3);
   prize3d.innerHTML = isPrize ? (p.img ? `<img class="photo" src="${p.img}">` : (p.emoji || '🎁')) : '💨';
@@ -850,7 +850,7 @@ function startReveal(c) {
   revealEl.classList.add('show');
 
   const sx = c.x - S / 2, sy = c.y - S / 2, k = (L.R * 2 * (c.scale || 1)) / S;
-  const ex = W / 2 - S / 2, ey = H * 0.42 - S / 2;
+  const ex = W / 2 - S / 2, ey = H * 0.44 - S / 2;
   const fly = cap3d.animate([
     { transform: `translate3d(${sx}px, ${sy}px, 0) scale(${k}) rotateX(0deg)` },
     { transform: `translate3d(${(sx * 0.4 + ex * 0.6)}px, ${Math.min(sy, ey) - H * 0.05}px, 120px) scale(${k * 0.3 + 0.7}) rotateX(-18deg)`, offset: 0.6 },
@@ -870,33 +870,70 @@ function startReveal(c) {
       cap3d.classList.add('open');
       revealEl.classList.add('burst');
       sound(isPrize ? 'win' : 'blank');
-      if (isPrize) sparks();
+      if (isPrize) celebrate();
       if (mode === 'game') sendCtl({ type: 'result', ok: isPrize, title: isPrize ? `${p.name} 당첨!` : '꽝!', detail: isPrize ? (p.desc || '축하해요! 🎉') : '다음 기회에…', emoji: isPrize ? p.emoji : '💨', img: isPrize && p.img && p.img.length < 400000 ? p.img : '', judge: jd });
-      setTimeout(endReveal, isPrize ? 3600 : 2200);
+      // 당첨 화면은 열린 뒤 5초 유지 (시연 중에는 3.5초)
+      setTimeout(endReveal, isPrize ? (mode === 'game' ? 5000 : 3500) : 2200);
     };
   };
 }
 
-function sparks() {
-  const colors = ['#b6f24a', '#ffd447', '#ff6cc2', '#3d8bff', '#fff'];
-  for (let i = 0; i < 40; i++) {
+// ---------- 당첨 축하 연출: 번쩍임 + 연속 불꽃 + 색종이 비 ----------
+const FX_COLORS = ['#b6f24a', '#ffd447', '#ff6cc2', '#3d8bff', '#ffffff', '#ff8a3d', '#9ef0d6'];
+function celebrate() {
+  // 불꽃: 여러 곳에서 연달아 터짐
+  const spots = [[0.5, 0.42], [0.22, 0.25], [0.78, 0.25], [0.3, 0.6], [0.7, 0.6], [0.5, 0.18], [0.15, 0.45], [0.85, 0.45]];
+  spots.forEach(([fx, fy], i) => setTimeout(() => { if (revealing) firework(W * fx, H * fy, i === 0 ? 70 : 42); }, i * 420));
+  // 색종이 비 (3초 동안 계속)
+  let n = 0;
+  const iv = setInterval(() => {
+    if (!revealing || n > 160) { clearInterval(iv); return; }
+    for (let k = 0; k < 6; k++, n++) confetti();
+  }, 110);
+  // 축하 소리 한 번 더
+  setTimeout(() => { if (revealing) sound('fanfare'); }, 650);
+}
+function firework(x, y, count) {
+  const m = Math.min(W, H);
+  sound('pop');
+  for (let i = 0; i < count; i++) {
     const s = document.createElement('div');
     s.className = 'spark';
-    const size = 6 + Math.random() * 10;
+    const size = m * (0.008 + Math.random() * 0.012);
     s.style.width = s.style.height = size + 'px';
-    s.style.background = colors[i % colors.length];
+    s.style.left = x + 'px'; s.style.top = y + 'px';
+    const col = FX_COLORS[i % FX_COLORS.length];
+    s.style.background = col; s.style.boxShadow = `0 0 ${size * 1.5}px ${col}`;
     revealEl.appendChild(s);
-    const a = Math.random() * Math.PI * 2, d = Math.min(W, H) * (0.25 + Math.random() * 0.35);
+    const a = (i / count) * Math.PI * 2 + Math.random() * 0.2, d = m * (0.16 + Math.random() * 0.2);
     s.animate([
-      { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
-      { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d + d * 0.3}px)) scale(.3)`, opacity: 0 },
-    ], { duration: 1100 + Math.random() * 600, easing: 'cubic-bezier(.1,.8,.3,1)', fill: 'forwards' }).onfinish = () => s.remove();
+      { transform: 'translate(-50%,-50%) scale(1.4)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${Math.cos(a) * d * 0.8}px), calc(-50% + ${Math.sin(a) * d * 0.8}px)) scale(1)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d + d * 0.45}px)) scale(.2)`, opacity: 0 },
+    ], { duration: 1300 + Math.random() * 500, easing: 'cubic-bezier(.15,.8,.3,1)', fill: 'forwards' }).onfinish = () => s.remove();
   }
+}
+function confetti() {
+  const m = Math.min(W, H);
+  const p = document.createElement('div');
+  p.className = 'confetti';
+  const w = m * (0.012 + Math.random() * 0.012);
+  p.style.width = w + 'px'; p.style.height = w * (1.4 + Math.random()) + 'px';
+  p.style.left = Math.random() * W + 'px';
+  p.style.background = FX_COLORS[Math.floor(Math.random() * FX_COLORS.length)];
+  if (Math.random() < 0.3) p.style.borderRadius = '50%';
+  revealEl.appendChild(p);
+  const drift = (Math.random() - 0.5) * m * 0.3, rot = (Math.random() - 0.5) * 1440;
+  p.animate([
+    { transform: 'translate(0, -5vh) rotate(0deg) rotateY(0deg)', opacity: 1 },
+    { transform: `translate(${drift}px, ${H * 1.08}px) rotate(${rot}deg) rotateY(${rot * 2}deg)`, opacity: 0.9 },
+  ], { duration: 2400 + Math.random() * 1800, easing: 'cubic-bezier(.3,.1,.6,1)', fill: 'forwards' }).onfinish = () => p.remove();
 }
 
 function endReveal() {
   revealEl.classList.remove('on', 'burst');
   setTimeout(() => {
+    revealEl.querySelectorAll('.spark, .confetti').forEach(e => e.remove());
     revealEl.classList.remove('show');
     cap3d.getAnimations().forEach(a => a.cancel());
     cap3d.classList.remove('open');
@@ -1038,7 +1075,7 @@ function sound(kind) {
   const a = actx; if (!a || a.state !== 'running') return;
   const seq = {
     release: [[180, .05], [140, .08]], drop: [[660, .05], [440, .06]], thunk: [[110, .09]], grab: [[300, .06], [420, .08]], slip: [[500, .08], [360, .08], [240, .2]],
-    whoosh: [[300, .05], [500, .05], [800, .08]], win: [[523, .1], [659, .1], [784, .1], [1047, .35]], blank: [[392, .15], [330, .3]], beep: [[880, .08]],
+    whoosh: [[300, .05], [500, .05], [800, .08]], win: [[523, .1], [659, .1], [784, .1], [1047, .18], [784, .1], [1047, .45]], fanfare: [[784, .12], [988, .12], [1175, .12], [1568, .5]], pop: [[1400, .04], [700, .06]], blank: [[392, .15], [330, .3]], beep: [[880, .08]],
   }[kind] || [[600, .08]];
   let t = a.currentTime;
   for (const [f, d] of seq) {
